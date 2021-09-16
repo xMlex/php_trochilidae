@@ -1,0 +1,13 @@
+*
+!.gitignore
+!trochilidae.c
+!php_trochilidae.h
+!tr_network.c
+!tr_network.h
+!tr_timer.c
+!tr_timer.h
+!utils.h
+!utils.c
+!config.m4
+!.travis.yml
+!CMakeLists.txt
