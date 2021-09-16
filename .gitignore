@@ -5,4 +5,4 @@
 !tr_network.c
 !tr_network.h
 !config.m4
-Makefile.local
+!.travis-ci.yml
