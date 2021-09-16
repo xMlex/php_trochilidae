@@ -1,6 +1,0 @@
-language: php
-php:
-  - 7.4
-  - 8.0
-
-script: phpize && ./configure --enable-trochilidae && make && make && make test
