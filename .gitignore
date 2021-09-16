@@ -1,0 +1,8 @@
+*
+!.gitignore
+!trochilidae.c
+!php_trochilidae.h
+!tr_network.c
+!tr_network.h
+!config.m4
+Makefile.local
