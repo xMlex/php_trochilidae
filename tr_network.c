@@ -4,9 +4,43 @@
 
 #include "tr_network.h"
 
-int tr_net_send(TrUDPSocket *socket, const void *buf, size_t size)
-{
-    return sendto(socket->socketFd, buf, size, MSG_CONFIRM, (const struct sockaddr *) &socket->sockAddressIn, socket->sockAddressLen);
+byte tr_request_method_map(const void *httpMethod) {
+    if (!httpMethod) {
+        return PHP_TROCHILIDAE_REQUEST_METHOD_NONE;
+    }
+    if (strcmp(httpMethod, "GET") == 0) {
+        return PHP_TROCHILIDAE_REQUEST_METHOD_GET;
+    }
+    if (strcmp(httpMethod, "HEAD") == 0) {
+        return PHP_TROCHILIDAE_REQUEST_METHOD_HEAD;
+    }
+    if (strcmp(httpMethod, "POST") == 0) {
+        return PHP_TROCHILIDAE_REQUEST_METHOD_POST;
+    }
+    if (strcmp(httpMethod, "PUT") == 0) {
+        return PHP_TROCHILIDAE_REQUEST_METHOD_PUT;
+    }
+    if (strcmp(httpMethod, "DELETE") == 0) {
+        return PHP_TROCHILIDAE_REQUEST_METHOD_DELETE;
+    }
+    if (strcmp(httpMethod, "CONNECT") == 0) {
+        return PHP_TROCHILIDAE_REQUEST_METHOD_CONNECT;
+    }
+    if (strcmp(httpMethod, "OPTIONS") == 0) {
+        return PHP_TROCHILIDAE_REQUEST_METHOD_OPTIONS;
+    }
+    if (strcmp(httpMethod, "TRACE") == 0) {
+        return PHP_TROCHILIDAE_REQUEST_METHOD_TRACE;
+    }
+    if (strcmp(httpMethod, "PATCH") == 0) {
+        return PHP_TROCHILIDAE_REQUEST_METHOD_PATCH;
+    }
+    return PHP_TROCHILIDAE_REQUEST_METHOD_NONE;
+}
+
+int tr_net_send(TrUDPSocket *socket, const void *buf, size_t size) {
+    return sendto(socket->socketFd, buf, size, MSG_CONFIRM, (const struct sockaddr *) &socket->sockAddressIn,
+                  socket->sockAddressLen);
 }
 
 int tr_net_create_collector(TrCollector *result) {
@@ -15,7 +49,6 @@ int tr_net_create_collector(TrCollector *result) {
     struct addrinfo ai_hints;
 
     if (result->udpSocket.initialized && (time(NULL) - result->udpSocket.createAt) < 65) {
-//        zend_printf("udpSocket cache\n");
         return 0;
     }
 
@@ -52,31 +85,35 @@ int tr_net_create_collector(TrCollector *result) {
 }
 
 
-void tr_write_string(ubyte * buf, int * pos, char * str)
-{
+void tr_write_string(byte *buf, int *pos, char *str) {
     size_t len = strlen(str);
     memcpy(&buf[*pos], str, len);
     *pos += len;
     buf[*pos] = 0x00;
     *pos += 1;
 }
-void tr_write_c(ubyte * buf, int * pos, void * c)
-{
+
+void tr_write_c(byte *buf, int *pos, void *c) {
     memcpy(&buf[*pos], c, 1);
     *pos += 1;
 }
-void tr_write_h(ubyte * buf, int * pos, void * c)
-{
+
+void tr_write_h(byte *buf, int *pos, void *c) {
     memcpy(&buf[*pos], c, 2);
     *pos += 2;
 }
-void tr_write_d(ubyte * buf, int * pos, void * c)
-{
+
+void tr_write_d(byte *buf, int *pos, void *c) {
     memcpy(&buf[*pos], c, 4);
     *pos += 4;
 }
-void tr_write_q(ubyte * buf, int * pos, void * c)
-{
+
+void tr_write_tv(byte *buf, int *pos, struct timeval *tv) {
+    tr_write_d(buf, pos, &tv->tv_sec);
+    tr_write_d(buf, pos, &tv->tv_usec);
+}
+
+void tr_write_q(byte *buf, int *pos, void *c) {
     memcpy(&buf[*pos], c, 8);
     *pos += 8;
 }

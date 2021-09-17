@@ -10,7 +10,7 @@
 #include "php_trochilidae.h"
 #include "tr_network.h"
 
-ubyte packet[65535];
+byte packet[65535];
 
 static const zend_function_entry functions[];
 
@@ -68,7 +68,7 @@ static PHP_MINIT_FUNCTION(trochilidae) {
     sapi_module.ub_write = sapi_ub_write_counter;
 
     //TODO use php ini
-    TR_G(collectors)[0].host = "192.168.1.72";
+    TR_G(collectors)[0].host = "127.0.0.1";
     TR_G(collectors)[0].port = "30001";
     tr_net_create_collector(&TR_G(collectors)[0]);
 
@@ -96,10 +96,14 @@ static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
     }
 
     tr_write_c(packet, &pos, &modeType);
-    tr_write_string(packet, &pos, TR_G(hostName));
+    tr_write_c(packet, &pos, &TR_G(requestData).request_method);
     tr_write_q(packet, &pos, &TR_G(requestData).mem_peak_usage);
+    tr_write_tv(packet, &pos, &TR_G(requestData).executionTime);
+    tr_write_tv(packet, &pos, &TR_G(requestData).CPUUsageUserTime);
+    tr_write_tv(packet, &pos, &TR_G(requestData).CPUUsageSystemTime);
     tr_write_q(packet, &pos, &TR_G(requestData).response_http_size);
     tr_write_d(packet, &pos, &TR_G(requestData).response_http_code);
+    tr_write_string(packet, &pos, TR_G(hostName));
     if (TR_G(requestData).request_domain) {
         tr_write_string(packet, &pos, TR_G(requestData).request_domain);
     } else {
@@ -156,20 +160,35 @@ zend_module_entry trochilidae_module_entry = {
 };
 
 static void collect_metrics_before_request() {
+    struct rusage u;
+    gettimeofday(&TR_G(requestData).executionTime, NULL);
+    getrusage(RUSAGE_SELF, &u);
+    tv_assign(&TR_G(requestData).CPUUsageUserTime, &u.ru_utime);
+    tv_assign(&TR_G(requestData).CPUUsageSystemTime, &u.ru_stime);
+
     TR_G(requestData).response_http_size = 0;
-    TR_G(requestData).request_uri = SG(request_info).request_uri;
     if (TR_G(modeCli)) {
+        TR_G(requestData).request_method = PHP_TROCHILIDAE_REQUEST_METHOD_NONE;
         TR_G(requestData).request_uri = tr_fetch_global_var("SCRIPT_FILENAME");
         TR_G(requestData).request_domain = tr_fetch_global_var("PWD");
     } else {
+        TR_G(requestData).request_method = tr_request_method_map(tr_fetch_global_var("REQUEST_METHOD"));
         TR_G(requestData).request_uri = tr_fetch_global_var("REQUEST_URI");
         TR_G(requestData).request_domain = tr_fetch_global_var("SERVER_NAME");
     }
 }
 
 static void collect_metrics_after_request() {
+    struct rusage u;
+    struct timeval tv;
     TR_G(requestData).mem_peak_usage = zend_memory_peak_usage(1);
     TR_G(requestData).response_http_code = SG(sapi_headers).http_response_code;
+
+    gettimeofday(&tv, NULL);
+    getrusage(RUSAGE_SELF, &u);
+    timersub(&tv, &TR_G(requestData).executionTime, &TR_G(requestData).executionTime);
+    timersub(&u.ru_utime, &TR_G(requestData).CPUUsageUserTime, &TR_G(requestData).CPUUsageUserTime);
+    timersub(&u.ru_stime, &TR_G(requestData).CPUUsageSystemTime, &TR_G(requestData).CPUUsageSystemTime);
 }
 
 static size_t sapi_ub_write_counter(const char *str, size_t length) {

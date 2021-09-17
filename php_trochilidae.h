@@ -7,6 +7,8 @@
 #define PHP_TROCHILIDAE_MODE_CLI 0x01
 #define PHP_TROCHILIDAE_MODE_CGI 0x02
 
+#include <sys/resource.h>
+#include "utils.h"
 #include "tr_network.h"
 
 #ifdef PHP_WIN32
@@ -18,7 +20,6 @@
 #endif
 
 ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
-    bool shutdownProgress;
     bool modeCli;
     char hostName[128];
     TrCollector collectors[PHP_TROCHILIDAE_COLLECTORS_MAX];
