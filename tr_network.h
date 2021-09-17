@@ -12,6 +12,7 @@
 #include <netdb.h>
 #include <zend.h>
 #include <time.h>
+#include <stdbool.h>
 #include "utils.h"
 
 #define PHP_TROCHILIDAE_REQUEST_METHOD_NONE 0x00
