@@ -4,5 +4,6 @@
 !php_trochilidae.h
 !tr_network.c
 !tr_network.h
+!utils.h
 !config.m4
 !.travis.yml
