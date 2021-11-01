@@ -44,11 +44,12 @@ int tr_net_send(TrUDPSocket *socket, const void *buf, size_t size) {
 }
 
 int tr_net_create_collector(TrCollector *result) {
+
     struct addrinfo *ai_list;
     struct addrinfo *ai_ptr = NULL;
     struct addrinfo ai_hints;
 
-    if (result->udpSocket.initialized && (time(NULL) - result->udpSocket.createAt) < 65) {
+    if (result->udpSocket.initialized == true && (time(NULL) - result->udpSocket.createAt) < 65) {
         return 0;
     }
 

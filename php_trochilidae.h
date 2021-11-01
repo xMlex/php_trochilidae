@@ -1,9 +1,9 @@
 #ifndef PHP_TROCHILIDAE_H
 #define PHP_TROCHILIDAE_H 1
 
-#define PHP_TROCHILIDAE_VERSION "0.0.1-dev"
+#define PHP_TROCHILIDAE_VERSION "0.0.2-dev"
 #define PHP_TROCHILIDAE_EXTNAME "trochilidae"
-#define PHP_TROCHILIDAE_COLLECTORS_MAX 16
+#define PHP_TROCHILIDAE_COLLECTORS_MAX 3
 #define PHP_TROCHILIDAE_MODE_CLI 0x01
 #define PHP_TROCHILIDAE_MODE_CGI 0x02
 
@@ -20,6 +20,7 @@
 #endif
 
 ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
+    bool enabled;
     bool modeCli;
     char hostName[128];
     TrCollector collectors[PHP_TROCHILIDAE_COLLECTORS_MAX];
@@ -32,7 +33,7 @@ ZEND_END_MODULE_GLOBALS(trochilidae)
 #define TR_G(v) (trochilidae_globals.v)
 #endif
 
-static PHP_FUNCTION(trochilidae_nop);
+static PHP_FUNCTION(trochilidae_set_host);
 
 extern zend_module_entry trochilidae_module_entry;
 
