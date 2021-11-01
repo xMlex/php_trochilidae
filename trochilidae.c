@@ -23,6 +23,7 @@ static void collect_metrics_before_request();
 static void collect_metrics_after_request();
 
 static inline char *tr_fetch_global_var(char *name);
+static inline zval *tr_fetch_global_var_ar(char *name);
 
 static size_t sapi_ub_write_counter(const char *str, size_t length);
 
@@ -107,13 +108,32 @@ static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
     if (TR_G(requestData).request_domain) {
         tr_write_string(packet, &pos, TR_G(requestData).request_domain);
     } else {
-        tr_write_string(packet, &pos, sapi_module.name);
+        tr_write_string(packet, &pos, strdup(sapi_module.name));
     }
     if (TR_G(requestData).request_uri) {
         tr_write_string(packet, &pos, TR_G(requestData).request_uri);
     } else {
-        tr_write_c(packet, &pos, sapi_module.name);
+        tr_write_string(packet, &pos, strdup(sapi_module.name));
     }
+    uint32_t argvCount = 0;
+    zval * argvList;
+    if (TR_G(modeCli)) {
+        argvList = tr_fetch_global_var_ar("argv");
+        if (argvList) {
+            argvCount = zend_array_count(Z_ARR_P(argvList));
+        }
+    }
+    tr_write_h(packet, &pos, &argvCount);
+    if (argvCount > 0 && TR_G(modeCli) && argvList) {
+        zend_ulong idx;
+        zend_string *key;
+        zval *val, tmp;
+        ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(argvList), idx, key, val)
+                {
+                    tr_write_string(packet, &pos, Z_STRVAL_P(val));
+                }ZEND_HASH_FOREACH_END();
+    }
+
 
     tr_write_h(packet, &sizePos, &pos);
 
@@ -203,7 +223,20 @@ static inline char *tr_fetch_global_var(char *name) {
         tmp = zend_hash_str_find(Z_ARRVAL(PG(http_globals)[TRACK_VARS_SERVER]), ZSTR_VAL(findName), ZSTR_LEN(findName));
         zend_string_release(findName);
         if (tmp) {
-            return strdup(Z_STRVAL_P(tmp));
+            return Z_STRVAL_P(tmp);
+        }
+    }
+    return NULL;
+}
+
+static inline zval *tr_fetch_global_var_ar(char *name) {
+    zval *tmp;
+    if ((Z_TYPE(PG(http_globals)[TRACK_VARS_SERVER]) == IS_ARRAY || zend_is_auto_global_str(ZEND_STRL("_SERVER")))) {
+        zend_string *findName = zend_string_init(name, strlen(name), 0);
+        tmp = zend_hash_str_find(Z_ARRVAL(PG(http_globals)[TRACK_VARS_SERVER]), ZSTR_VAL(findName), ZSTR_LEN(findName));
+        zend_string_release(findName);
+        if (Z_TYPE_P(tmp) == IS_ARRAY && zend_array_count(Z_ARR_P(tmp)) > 0) {
+            return tmp;
         }
     }
     return NULL;
