@@ -168,7 +168,7 @@ static int send_data() {
         d2tv(rt, &requestTV);
     } else {
         struct timeval requestTVtmp;
-        gettimeofday(&requestTV, &requestTVtmp);
+        gettimeofday(&requestTV, (void *)&requestTVtmp);
     }
     tr_client_w_tv(TR_G(packet), &pos, &requestTV);
 

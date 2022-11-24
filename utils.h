@@ -5,7 +5,7 @@
 #define PHP_TROCHILIDAE_UTILS_H
 
 #include <time.h>
-#include <bits/types/struct_timeval.h>
+#include <sys/time.h>
 
 typedef unsigned long uLong;
 typedef char byte;
