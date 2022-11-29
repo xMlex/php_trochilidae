@@ -11,3 +11,5 @@ php:
 
 script:
   - phpize && ./configure --enable-trochilidae && make -j$(nproc)
+  - php -m
+  - php test.php
