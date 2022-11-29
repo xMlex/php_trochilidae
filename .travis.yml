@@ -10,6 +10,7 @@ php:
   - master
 
 script:
-  - phpize && ./configure --enable-trochilidae && make -j$(nproc)
+  - phpize && ./configure --enable-trochilidae && make -j$(nproc) install
+  - echo "extension=trochilidae.so" >> `php --ini | grep "Loaded Configuration" | sed -e "s|.*:\s*||"`
   - php -m
   - php test.php
