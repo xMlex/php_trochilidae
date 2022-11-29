@@ -39,7 +39,7 @@ byte tr_request_method_map(const void *httpMethod) {
 }
 
 extern int tr_client_init(TrClient *client) {
-    if (client->initialized == 1) {
+    if (client->initialized) {
         return 0;
     }
     return tr_client_create(client);
@@ -55,9 +55,9 @@ extern int tr_client_create(TrClient *client) {
     }
     memset(&client->sockAddressIn, 0, sizeof(client->sockAddressIn));
 
-    if (tr_client_set_addr_info(client) == 1) {
-        client->initialized = 0;
-        return 1;
+    int set_addr_result = tr_client_set_addr_info(client);
+    if (set_addr_result > 0) {
+        return set_addr_result;
     }
 
 //    struct timeval timeout;
@@ -68,50 +68,66 @@ extern int tr_client_create(TrClient *client) {
 //        return 1;
 //    }
 
-    client->initialized = 1;
+    client->initialized = true;
     client->initAt = time(NULL);
     return 0;
 }
 
 extern void tr_client_destroy(TrClient *client) {
 //    return;
-    if (client->initialized == 1) {
+    if (!client) {
+        return;
+    }
+    if (client->initialized == true) {
         close(client->socketFd);
     }
-    client->initialized = 0;
+    client->initialized = false;
 }
 
 int tr_client_set_addr_info(TrClient *client) {
     struct addrinfo ai_hints;
 
-    memset(&ai_hints, 0, sizeof(ai_hints));
+    if (!client->host) {
+        return 5;
+    }
+    if (!client->port) {
+        return 6;
+    }
 
+    memset(&ai_hints, 0, sizeof(ai_hints));
+    ai_hints.ai_flags = 0;
 #ifdef AI_ADDRCONFIG
-    ai_hints.ai_flags |= AI_ADDRCONFIG;
+    ai_hints.ai_flags    |= AI_ADDRCONFIG;
 #endif
-    ai_hints.ai_family = AF_UNSPEC;
+    ai_hints.ai_family = AF_INET;
     ai_hints.ai_socktype = SOCK_DGRAM;
-    ai_hints.ai_addr = NULL;
-    ai_hints.ai_canonname = NULL;
-    ai_hints.ai_next = NULL;
+    ai_hints.ai_protocol = IPPROTO_UDP;
 
     struct addrinfo *ai_list;
 
     int status = getaddrinfo(client->host, client->port, &ai_hints, &ai_list);
     if (status != 0) {
-        return 1;
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
+        return status;
     }
 
     struct addrinfo *ai_ptr = NULL;
+    int init = 0;
     for (ai_ptr = ai_list; ai_ptr != NULL; ai_ptr = ai_ptr->ai_next) {
         int fd = socket(ai_ptr->ai_family, ai_ptr->ai_socktype, ai_ptr->ai_protocol);
+        if (fd == -1)
+            continue;
         if (fd >= 0) {
             memcpy(&client->sockAddressIn, ai_ptr->ai_addr, ai_ptr->ai_addrlen);
             client->sockAddressLen = ai_ptr->ai_addrlen;
+            init = 1;
             break;
         }
     }
     freeaddrinfo(ai_list);
+    if (init != 1) {
+        return 3;
+    }
     return 0;
 }
 

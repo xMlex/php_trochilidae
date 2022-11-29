@@ -8,6 +8,7 @@
 !tr_timer.h
 !utils.h
 !utils.c
+!trochilidae_arginfo.h
 !config.m4
 !.travis.yml
 !CMakeLists.txt

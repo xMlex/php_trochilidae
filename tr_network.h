@@ -44,7 +44,7 @@ typedef struct {
 } TrRequestData;
 
 typedef struct {
-    short initialized;
+    bool initialized;
     int socketFd;
     struct sockaddr_in sockAddressIn;
     size_t sockAddressLen;

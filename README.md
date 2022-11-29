@@ -7,6 +7,7 @@ A PHP extension for metrics collect
 ```
 phpize && ./configure --enable-trochilidae && make && make test
 php -d extension=$(pwd)/modules/trochilidae.so -f test.php
+run /home/mlex/CLionProjects/php_trochilidae/test.php
 ```
 
 TODO:

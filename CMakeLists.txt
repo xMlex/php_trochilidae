@@ -29,4 +29,4 @@ add_executable(php_trochilidae
         utils.c
         trochilidae.c
         tr_timer.c
-        )
+        trochilidae_arginfo.h)

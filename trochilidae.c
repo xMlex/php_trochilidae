@@ -10,52 +10,27 @@
 #include "SAPI.h"
 #include "php_trochilidae.h"
 #include "tr_network.h"
+#include "trochilidae_arginfo.h"
 
 static const zend_function_entry functions[];
-
-static void php_trochilidae_ctor_globals(zend_trochilidae_globals *globals);
-
-static void php_trochilidae_dtor_globals(zend_trochilidae_globals *globals);
-
-static void collect_metrics_before_request();
-
-static void collect_metrics_after_request();
-
-static inline char *tr_fetch_global_var(char *name);
-
-static inline zval *tr_fetch_global_var_ar(char *name);
-
-static size_t sapi_ub_write_counter(const char *str, size_t length);
 
 ZEND_DECLARE_MODULE_GLOBALS(trochilidae)
 
 size_t (*sapi_old_ub_write)(const char *str, size_t str_length);
 
-static void tr_client_w_tags(size_t *pos);
-
-static void tr_client_w_argvs(size_t *pos);
-
-static int send_data();
-
 #ifdef COMPILE_DL_TROCHILIDAE
 ZEND_GET_MODULE(trochilidae)
 #endif
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_trochilidae_set_tag, 0, 1, 0)
-                ZEND_ARG_TYPE_INFO(0, str, IS_STRING, 1)
-                ZEND_ARG_TYPE_INFO(0, str, IS_STRING, 1)
-ZEND_END_ARG_INFO()
-
 PHP_FUNCTION (trochilidae_set_tag) {
-    zend_string *key;
-    zend_string *val;
+    zend_string *k;
+    zend_string *v;
     ZEND_PARSE_PARAMETERS_START_EX(ZEND_PARSE_PARAMS_THROW, 2, 2)
-            Z_PARAM_STR(key)
-            Z_PARAM_STR(val)
+            Z_PARAM_STR(k)
+            Z_PARAM_STR(v)
     ZEND_PARSE_PARAMETERS_END();
 
-    add_assoc_str(&TR_G(tags), key->val, val);
-    RETURN_TRUE;
+    add_assoc_str(&TR_G(tags), k->val, v);
 }
 
 static const zend_function_entry functions[] = {
@@ -75,28 +50,29 @@ ZEND_INI_MH(onUpdateTrPort) {
 
 ZEND_INI_DISP(TrHost) {
     if (type == ZEND_INI_DISPLAY_ORIG && ini_entry->modified && ini_entry->orig_value) {
-        TR_G(collectors)[0].host = ZSTR_VAL(ini_entry->orig_value);
+        TR_G(collectors)[0].host = ini_entry->orig_value->val;
     } else if (ini_entry->value) {
-        TR_G(collectors)[0].host = ZSTR_VAL(ini_entry->value);
+        TR_G(collectors)[0].host = ini_entry->value->val;
     }
 }
 
 ZEND_INI_DISP(TrPort) {
     if (type == ZEND_INI_DISPLAY_ORIG && ini_entry->modified && ini_entry->orig_value) {
-        TR_G(collectors)[0].port = ZSTR_VAL(ini_entry->orig_value);
+        TR_G(collectors)[0].port = ini_entry->orig_value->val;
     } else if (ini_entry->value) {
-        TR_G(collectors)[0].port = ZSTR_VAL(ini_entry->value);
+        TR_G(collectors)[0].port = ini_entry->value->val;
     }
-    tr_client_destroy(&TR_G(collectors)[0]);
 }
 
 ZEND_INI_DISP(TrEnabled) {
     if (type == ZEND_INI_DISPLAY_ORIG && ini_entry->modified && ini_entry->orig_value) {
-        TR_G(enabled) = strcmp(ZSTR_VAL(ini_entry->orig_value), "1");
+        TR_G(enabled) = strcmp(ini_entry->orig_value->val, "1") == 0;
     } else if (ini_entry->value) {
-        TR_G(enabled) = strcmp(ZSTR_VAL(ini_entry->value), "1");
+        TR_G(enabled) = strcmp(ini_entry->value->val, "1") == 0;
     }
-    tr_client_destroy(&TR_G(collectors)[0]);
+    if (!TR_G(enabled)) {
+        tr_client_destroy(&TR_G(collectors)[0]);
+    }
 }
 
 PHP_INI_BEGIN()
@@ -118,7 +94,7 @@ static PHP_MINIT_FUNCTION(trochilidae) {
     sapi_old_ub_write = sapi_module.ub_write;
     sapi_module.ub_write = sapi_ub_write_counter;
 
-    if (tr_client_init(&TR_G(collectors)[0]) == 1) {
+    if (tr_client_init(&TR_G(collectors)[0]) > 0) {
         php_error_docref(NULL, E_NOTICE,
                          "[trochilidae] tr_client_init address: %s:%s",
                          TR_G(collectors)[0].host, TR_G(collectors)[0].port
@@ -146,7 +122,9 @@ static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
         zval_dtor(&TR_G(tags));
         return SUCCESS;
     }
-    return send_data();
+    send_data();
+    zval_dtor(&TR_G(tags));
+    return SUCCESS;
 }
 
 static int send_data() {
@@ -194,7 +172,6 @@ static int send_data() {
     tr_client_w_argvs(&pos);
     // tags
     tr_client_w_tags(&pos);
-    zval_dtor(&TR_G(tags));
 
     TR_G(bytesSend) += pos;
     // total pkg size
@@ -304,6 +281,13 @@ static PHP_MINFO_FUNCTION(trochilidae) {
         php_info_print_table_row(3, bufName, bufHost, initialized);
     }
     php_info_print_table_end();
+
+    php_info_print_table_start();
+    php_info_print_table_header(2, "Trochilidae support", "Info");
+    php_info_print_table_row(2, "Extension version", PHP_TROCHILIDAE_VERSION);
+    php_info_print_table_end();
+
+    DISPLAY_INI_ENTRIES();
 }
 
 zend_module_entry trochilidae_module_entry = {
@@ -381,7 +365,7 @@ static inline zval *tr_fetch_global_var_ar(char *name) {
         zend_string_release(findName);
         if (Z_TYPE_P(tmp) == IS_ARRAY && zend_array_count(Z_ARR_P(tmp)) > 0) {
             return tmp;
-        } else if(Z_TYPE_P(tmp) != IS_ARRAY) {
+        } else if(Z_TYPE_P(tmp) != IS_NULL) {
             return tmp;
         }
     }
