@@ -9,7 +9,6 @@
 #include "ext/standard/info.h"
 #include "SAPI.h"
 #include "php_trochilidae.h"
-#include "tr_network.h"
 #include "trochilidae_arginfo.h"
 
 static const zend_function_entry functions[];

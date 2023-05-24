@@ -8,8 +8,8 @@
 #define PHP_TROCHILIDAE_MODE_CGI 0x02
 
 #include <sys/resource.h>
-#include "utils.h"
-#include "tr_network.h"
+#include "trochilidae/utils.h"
+#include "trochilidae/tr_network.h"
 
 #ifdef PHP_WIN32
 # define PHP_TROCHILIDAE_API __declspec(dllexport)

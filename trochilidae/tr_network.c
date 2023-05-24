@@ -2,7 +2,7 @@
 // Created by xMlex on 13.09.2021.
 //
 
-#include "tr_network.h"
+#include "trochilidae/tr_network.h"
 
 byte tr_request_method_map(const void *httpMethod) {
     if (!httpMethod) {

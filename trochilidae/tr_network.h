@@ -13,7 +13,7 @@
 #include <zend.h>
 #include <time.h>
 #include <stdbool.h>
-#include "utils.h"
+#include "trochilidae/utils.h"
 
 #define PHP_TROCHILIDAE_REQUEST_METHOD_UNDEFINED 0xFF
 #define PHP_TROCHILIDAE_REQUEST_METHOD_NONE 0x00
