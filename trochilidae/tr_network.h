@@ -40,7 +40,6 @@ typedef struct {
     struct timeval executionTime;
     struct timeval CPUUsageUserTime;
     struct timeval CPUUsageSystemTime;
-
 } TrRequestData;
 
 typedef struct {

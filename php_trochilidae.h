@@ -10,6 +10,7 @@
 #include <sys/resource.h>
 #include "trochilidae/utils.h"
 #include "trochilidae/tr_network.h"
+#include "trochilidae/tr_timer.h"
 
 #ifdef PHP_WIN32
 # define PHP_TROCHILIDAE_API __declspec(dllexport)
@@ -27,6 +28,7 @@ ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
     TrClient collectors[PHP_TROCHILIDAE_COLLECTORS_MAX];
     TrRequestData requestData;
     zval tags;
+    zval timers;
     unsigned long bytesSend;
     unsigned long requestCount;
 ZEND_END_MODULE_GLOBALS(trochilidae)

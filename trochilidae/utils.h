@@ -12,6 +12,8 @@ typedef char byte;
 
 #define tv_assign(a, b) { (a)->tv_sec = (b)->tv_sec; (a)->tv_usec = (b)->tv_usec; };
 #define tv_assign_rusage(a, b) { (a)->tv_sec = (b)->ru_stime; (a)->tv_usec = (b)->ru_utime; };
+#define timeval_to_float(t) (float)(t).tv_sec + (float)(t).tv_usec / 1000000.0
+
 
 extern void d2tv(double x, struct timeval *tv);
 

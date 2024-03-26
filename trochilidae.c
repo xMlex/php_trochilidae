@@ -17,9 +17,13 @@ ZEND_DECLARE_MODULE_GLOBALS(trochilidae)
 
 size_t (*sapi_old_ub_write)(const char *str, size_t str_length);
 
+TrTimer *get_or_create_tr_timer(zend_string *timerName);
+
 #ifdef COMPILE_DL_TROCHILIDAE
 ZEND_GET_MODULE(trochilidae)
 #endif
+
+int res_tr_timer;
 
 PHP_FUNCTION (trochilidae_set_tag) {
     zend_string *k;
@@ -32,8 +36,74 @@ PHP_FUNCTION (trochilidae_set_tag) {
     add_assoc_str(&TR_G(tags), k->val, v);
 }
 
+PHP_FUNCTION (trochilidae_timer_start) {
+    zend_string *timerName;
+    ZEND_PARSE_PARAMETERS_START_EX(ZEND_PARSE_PARAMS_THROW, 1, 1)
+            Z_PARAM_STR(timerName)
+    ZEND_PARSE_PARAMETERS_END();
+    tr_timer_start(get_or_create_tr_timer(timerName));
+    RETURN_TRUE;
+}
+
+TrTimer *get_or_create_tr_timer(zend_string *timerName) {
+    TrTimer* timer = NULL;
+    zend_ulong idx;
+    zend_string *key;
+    zval *val;
+
+    ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(&TR_G(timers)), idx, key, val)
+            {
+                if (timer == NULL && zend_string_equals(key, timerName)) {
+                    //printf(" get_or_create_tr_timer: found %s \n", key->val);
+                    timer = (TrTimer *) Z_RES_VAL_P(val);
+                    break;
+                }
+            }
+    ZEND_HASH_FOREACH_END();
+
+    if (!timer) {
+        timer = tr_timer_new(timerName->val);
+        timer->resource = zend_register_resource(timer, res_tr_timer);
+        add_assoc_resource(&TR_G(timers), timerName->val, timer->resource);
+    };
+    return timer;
+}
+
+PHP_FUNCTION (trochilidae_timer_stop) {
+    zend_string *timerName;
+    ZEND_PARSE_PARAMETERS_START_EX(ZEND_PARSE_PARAMS_THROW, 1, 1)
+            Z_PARAM_STR(timerName)
+    ZEND_PARSE_PARAMETERS_END();
+    tr_timer_stop(get_or_create_tr_timer(timerName));
+    RETURN_TRUE;
+}
+
+static PHP_FUNCTION(trochilidae_timer_get_info) {
+    array_init(return_value);
+    zend_ulong idx;
+    zend_string *key;
+    zval *val;
+    zval timers, timer_info;
+    array_init(&timers);
+    ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(&TR_G(timers)), idx, key, val)
+            {
+                array_init(&timer_info);
+                add_assoc_long(&timer_info, "startCount", ((TrTimer *) Z_RES_VAL_P(val))->startCount);
+                add_assoc_long(&timer_info, "startCount", ((TrTimer *) Z_RES_VAL_P(val))->startCount);
+                add_assoc_long(&timer_info, "stopCount", ((TrTimer *) Z_RES_VAL_P(val))->stopCount);
+                add_assoc_double(&timer_info, "totalExecutionTime", timeval_to_float(((TrTimer *) Z_RES_VAL_P(val))->totalExecutionTime));
+                add_assoc_double(&timer_info, "lastExecutionTime", timeval_to_float(((TrTimer *) Z_RES_VAL_P(val))->executionTime));
+                add_next_index_zval(&timers, &timer_info);
+            }
+    ZEND_HASH_FOREACH_END();
+    add_assoc_zval(return_value, "timers", &timers);
+}
+
 static const zend_function_entry functions[] = {
         PHP_FE(trochilidae_set_tag, arginfo_trochilidae_set_tag)
+        PHP_FE(trochilidae_timer_start, arginfo_trochilidae_timer_start)
+        PHP_FE(trochilidae_timer_stop, arginfo_trochilidae_timer_stop)
+        PHP_FE(trochilidae_timer_get_info, arginfo_trochilidae_get_info)
         PHP_FE_END
 };
 
@@ -93,6 +163,8 @@ static PHP_MINIT_FUNCTION(trochilidae) {
     sapi_old_ub_write = sapi_module.ub_write;
     sapi_module.ub_write = sapi_ub_write_counter;
 
+    res_tr_timer = zend_register_list_destructors_ex(res_tr_timer_dtor, NULL, "res_trochilidae_timer", module_number);
+
     if (tr_client_init(&TR_G(collectors)[0]) > 0) {
         php_error_docref(NULL, E_NOTICE,
                          "[trochilidae] tr_client_init address: %s:%s",
@@ -113,6 +185,7 @@ static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
 static PHP_RINIT_FUNCTION(trochilidae) {
     collect_metrics_before_request();
     array_init(&TR_G(tags));
+    array_init(&TR_G(timers));
     return SUCCESS;
 }
 
@@ -123,6 +196,7 @@ static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
     }
     send_data();
     zval_dtor(&TR_G(tags));
+    zval_dtor(&TR_G(timers));
     return SUCCESS;
 }
 
@@ -171,6 +245,8 @@ static int send_data() {
     tr_client_w_argvs(&pos);
     // tags
     tr_client_w_tags(&pos);
+    // timers
+    tr_client_w_timers(&pos);
 
     TR_G(bytesSend) += pos;
     // total pkg size
@@ -241,6 +317,22 @@ static void tr_client_w_tags(size_t *pos) {
             {
                 tr_client_w_str(TR_G(packet), pos, key->val);
                 tr_client_w_str(TR_G(packet), pos, Z_STRVAL_P(val));
+            }
+    ZEND_HASH_FOREACH_END();
+}
+static void tr_client_w_timers(size_t *pos) {
+    uint32_t count = zend_array_count(Z_ARR_P(&TR_G(timers)));
+    tr_client_w_h(TR_G(packet), pos, &count);
+    if (count <= 0) {
+        return;
+    }
+    zend_string *key;
+    zval *val;
+    ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARR_P(&TR_G(timers)), key, val)
+            {
+                tr_client_w_str(TR_G(packet), pos, key->val);
+                tr_client_w_d(TR_G(packet), pos, &((TrTimer *) Z_RES_VAL_P(val))->startCount);
+                tr_client_w_tv(TR_G(packet), pos, &((TrTimer *) Z_RES_VAL_P(val))->totalExecutionTime);
             }
     ZEND_HASH_FOREACH_END();
 }

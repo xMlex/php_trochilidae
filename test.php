@@ -13,4 +13,22 @@ trochilidae_set_tag("controller", "testController");
 trochilidae_set_tag("action", "testAction");
 trochilidae_set_tag("company", "testCompany");
 
+echo 'trochilidae_timer_stop', PHP_EOL;
+$r = trochilidae_timer_stop("db");
+var_dump($r);
+
+echo 'trochilidae_timer_start', PHP_EOL;
+$r = trochilidae_timer_start("db"); var_dump($r);
+usleep(100);
+trochilidae_timer_stop("db");
+echo 'trochilidae_timer_stop', PHP_EOL;
+
+echo 'trochilidae_timer_start', PHP_EOL;
+$r = trochilidae_timer_start("db"); var_dump($r);
+usleep(200);
+trochilidae_timer_stop("db");
+echo 'trochilidae_timer_stop', PHP_EOL;
+
+var_dump(trochilidae_timer_get_info());
+
 echo 'OK', PHP_EOL;

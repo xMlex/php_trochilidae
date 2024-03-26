@@ -21,12 +21,12 @@ include_directories(${PROJECT_SOURCE_DIR})
 
 add_executable(php_trochilidae
         config.h
-        trochilidae/tr_timer.h
         php_trochilidae.h
         trochilidae/tr_network.c
         trochilidae/tr_network.h
         trochilidae/utils.h
         trochilidae/utils.c
-        trochilidae.c
+        trochilidae/tr_timer.h
         trochilidae/tr_timer.c
+        trochilidae.c
         trochilidae_arginfo.h)
