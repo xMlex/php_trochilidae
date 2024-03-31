@@ -138,17 +138,9 @@ ZEND_INI_MH(onUpdateServerList) {
     return SUCCESS;
 }
 
-ZEND_INI_DISP(TrEnabled) {
-    if (type == ZEND_INI_DISPLAY_ORIG && ini_entry->modified && ini_entry->orig_value) {
-        TR_G(enabled) = strcmp(ini_entry->orig_value->val, "1") == 0;
-    } else if (ini_entry->value) {
-        TR_G(enabled) = strcmp(ini_entry->value->val, "1") == 0;
-    }
-}
-
 PHP_INI_BEGIN()
-                STD_PHP_INI_ENTRY_EX("trochilidae.enabled", "0", PHP_INI_ALL, OnUpdateBool, enabled, zend_trochilidae_globals, trochilidae_globals, TrEnabled)
-                STD_PHP_INI_ENTRY("trochilidae.server_list", NULL, PHP_INI_ALL, onUpdateServerList, server_list, zend_trochilidae_globals, trochilidae_globals)
+ STD_PHP_INI_BOOLEAN("trochilidae.enabled", "1", PHP_INI_ALL, OnUpdateBool, enabled, zend_trochilidae_globals, trochilidae_globals)
+ STD_PHP_INI_ENTRY("trochilidae.server_list", NULL, PHP_INI_ALL, onUpdateServerList, server_list, zend_trochilidae_globals, trochilidae_globals)
 PHP_INI_END()
 
 static PHP_MINIT_FUNCTION(trochilidae) {
@@ -341,8 +333,9 @@ static PHP_MINFO_FUNCTION(trochilidae) {
     php_info_print_table_header(3, "Trochilidae support", "Info", "Additional");
     php_info_print_table_row(3, "Extension version", PHP_TROCHILIDAE_VERSION, initialized);
 
-    snprintf(bufName, sizeof(bufName), "%d", TR_G(enabled));
-    php_info_print_table_row(3, "Enabled", bufName, initialized);
+    php_info_print_table_row(2, "Trochilidae Support", "enabled");
+//    snprintf(bufName, sizeof(bufName), "%d", TR_G(enabled));
+//    php_info_print_table_row(3, "Enabled", bufName, TR_G(enabled));
 
     snprintf(bufHost, sizeof(bufName), "Requests: %lu", TR_G(requestCount));
     snprintf(bufName, sizeof(bufName), "BytesSend: %lu Avg: %lu byte", TR_G(bytesSend),
@@ -355,7 +348,7 @@ static PHP_MINFO_FUNCTION(trochilidae) {
     snprintf(bufName, sizeof(bufName), "%d", *tr_network_get_domain_resolve_cache_size());
     php_info_print_table_row(3, "DNS Resolve cache count:", bufName, "");
 
-    for (int i = 0; i < PHP_TROCHILIDAE_COLLECTORS_MAX; ++i) {
+    for (int i = 0; i < collector_count; ++i) {
         if (!TR_G(collectors)[i].initialized) {
             continue;
         }
