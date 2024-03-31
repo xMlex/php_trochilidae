@@ -252,7 +252,7 @@ static int send_data() {
                              cnt, errorBuf, TR_G(collectors)[i].host, TR_G(collectors)[i].port
             );
         }
-        printf("send_data: %zu to %s:%d\n", cnt, TR_G(collectors)[i].host, TR_G(collectors)[i].port);
+        //printf("send_data: %zu to %s:%d\n", cnt, TR_G(collectors)[i].host, TR_G(collectors)[i].port);
     }
 
 
