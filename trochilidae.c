@@ -18,12 +18,14 @@ ZEND_DECLARE_MODULE_GLOBALS(trochilidae)
 size_t (*sapi_old_ub_write)(const char *str, size_t str_length);
 
 TrTimer *get_or_create_tr_timer(zend_string *timerName);
+void update_server_list();
 
 #ifdef COMPILE_DL_TROCHILIDAE
 ZEND_GET_MODULE(trochilidae)
 #endif
 
 int res_tr_timer;
+int collector_count = 0;
 
 PHP_FUNCTION (trochilidae_set_tag) {
     zend_string *k;
@@ -69,6 +71,26 @@ TrTimer *get_or_create_tr_timer(zend_string *timerName) {
     return timer;
 }
 
+void update_server_list() {
+    DomainPortEntry * pairs = parse_domain_port_pairs(TR_G(server_list), &collector_count);
+    if (collector_count > PHP_TROCHILIDAE_COLLECTORS_MAX) {
+        collector_count = PHP_TROCHILIDAE_COLLECTORS_MAX;
+    }
+    for (int i = 0; i < collector_count; i++) {
+        //printf("Domain[%d]: %s, Port: %d\n", i, pairs[i].domain, pairs[i].port);
+        tr_client_destroy(&TR_G(collectors)[i]);
+
+        TR_G(collectors)[i].host = malloc(strlen(pairs[i].domain) + 1);
+        strcpy(TR_G(collectors)[i].host, pairs[i].domain);
+        TR_G(collectors)[i].port = pairs[i].port;
+        if (!tr_client_init(&TR_G(collectors)[i])) {
+            continue;
+        }
+    }
+
+    free(pairs);
+}
+
 PHP_FUNCTION (trochilidae_timer_stop) {
     zend_string *timerName;
     ZEND_PARSE_PARAMETERS_START_EX(ZEND_PARSE_PARAMS_THROW, 1, 1)
@@ -107,30 +129,21 @@ static const zend_function_entry functions[] = {
         PHP_FE_END
 };
 
-ZEND_INI_MH(onUpdateTrHost) {
-    TR_G(collectors)[0].host = new_value->val;
-    return SUCCESS;
+ZEND_INI_MH(onUpdateServerList) {
+    TR_G(server_list) = new_value->val;
+    //printf("onUpdateServerList: %s\n", TR_G(server_list));
+    update_server_list();
+    return true;
 }
 
-ZEND_INI_MH(onUpdateTrPort) {
-    TR_G(collectors)[0].port = new_value->val;
-    return SUCCESS;
-}
-
-ZEND_INI_DISP(TrHost) {
+ZEND_INI_DISP(onServerListInit) {
     if (type == ZEND_INI_DISPLAY_ORIG && ini_entry->modified && ini_entry->orig_value) {
-        TR_G(collectors)[0].host = ini_entry->orig_value->val;
+        TR_G(server_list) = ini_entry->orig_value->val;
     } else if (ini_entry->value) {
-        TR_G(collectors)[0].host = ini_entry->value->val;
+        TR_G(server_list) = ini_entry->value->val;
     }
-}
-
-ZEND_INI_DISP(TrPort) {
-    if (type == ZEND_INI_DISPLAY_ORIG && ini_entry->modified && ini_entry->orig_value) {
-        TR_G(collectors)[0].port = ini_entry->orig_value->val;
-    } else if (ini_entry->value) {
-        TR_G(collectors)[0].port = ini_entry->value->val;
-    }
+    //printf("onServerListInit: %s\n", TR_G(server_list));
+    update_server_list();
 }
 
 ZEND_INI_DISP(TrEnabled) {
@@ -139,20 +152,15 @@ ZEND_INI_DISP(TrEnabled) {
     } else if (ini_entry->value) {
         TR_G(enabled) = strcmp(ini_entry->value->val, "1") == 0;
     }
-    if (!TR_G(enabled)) {
-        tr_client_destroy(&TR_G(collectors)[0]);
-    }
 }
 
 PHP_INI_BEGIN()
                 STD_PHP_INI_ENTRY_EX
                 ("trochilidae.enabled", "1", PHP_INI_ALL, OnUpdateBool, enabled, zend_trochilidae_globals,
                  trochilidae_globals, TrEnabled)
-                STD_PHP_INI_ENTRY_EX("trochilidae.server", "127.0.0.1", PHP_INI_ALL, onUpdateTrHost, collectors[0].host,
-                                     zend_trochilidae_globals, trochilidae_globals, TrHost)
                 STD_PHP_INI_ENTRY_EX
-                ("trochilidae.port", "30001", PHP_INI_ALL, onUpdateTrPort, collectors[0].port, zend_trochilidae_globals,
-                 trochilidae_globals, TrPort)
+                ("trochilidae.server_list", "localhost", PHP_INI_ALL, onUpdateServerList, server_list, zend_trochilidae_globals,
+                 trochilidae_globals, onServerListInit)
 PHP_INI_END()
 
 static PHP_MINIT_FUNCTION(trochilidae) {
@@ -165,13 +173,6 @@ static PHP_MINIT_FUNCTION(trochilidae) {
 
     res_tr_timer = zend_register_list_destructors_ex(res_tr_timer_dtor, NULL, "res_trochilidae_timer", module_number);
 
-    if (tr_client_init(&TR_G(collectors)[0]) > 0) {
-        php_error_docref(NULL, E_NOTICE,
-                         "[trochilidae] tr_client_init address: %s:%s",
-                         TR_G(collectors)[0].host, TR_G(collectors)[0].port
-        );
-        return FAILURE;
-    }
     return SUCCESS;
 }
 
@@ -252,22 +253,21 @@ static int send_data() {
     // total pkg size
     tr_client_w_h(TR_G(packet), &sizePos, &pos);
 
-    if (tr_client_init(&TR_G(collectors)[0]) == 1) {
-        php_error_docref(NULL, E_NOTICE,
-                         "[trochilidae] tr_client_init address: %s:%s",
-                         TR_G(collectors)[0].host, TR_G(collectors)[0].port
-        );
-        return FAILURE;
+    // init clients
+    for (int i = 0; i < collector_count; i++) {
+        tr_client_refresh_server(&TR_G(collectors)[i]);
+        size_t cnt = tr_client_send(&TR_G(collectors)[i], &TR_G(packet), pos);
+        if (cnt == -1) {
+            char *errorBuf = strerror(errno);
+            php_error_docref(NULL, E_NOTICE,
+                             "[trochilidae] tr_net_send: %zu - %s,  address: %s:%i",
+                             cnt, errorBuf, TR_G(collectors)[i].host, TR_G(collectors)[i].port
+            );
+        }
+        //printf("send_data: %zu to %s:%d\n", cnt, TR_G(collectors)[i].host, TR_G(collectors)[i].port);
     }
-    size_t cnt = tr_client_send(&TR_G(collectors)[0], &TR_G(packet), pos);
-    if (cnt == -1) {
-        char *errorBuf = strerror(errno);
-        php_error_docref(NULL, E_NOTICE,
-                         "[trochilidae] tr_net_send: %zu - %s,  address: %s:%s",
-                         cnt, errorBuf, TR_G(collectors)[0].host, TR_G(collectors)[0].port
-        );
-        return FAILURE;
-    }
+
+
 
     return SUCCESS;
 }
@@ -364,8 +364,14 @@ static PHP_MINFO_FUNCTION(trochilidae) {
     snprintf(bufName, sizeof(bufName), "%d ", getpid());
     php_info_print_table_row(3, "PID", bufName, "");
 
+    snprintf(bufName, sizeof(bufName), "%d", *tr_network_get_domain_resolve_cache_size());
+    php_info_print_table_row(3, "DNS Resolve cache count:", bufName, "");
+
     for (int i = 0; i < PHP_TROCHILIDAE_COLLECTORS_MAX; ++i) {
-        snprintf(bufHost, sizeof(bufHost), "%s:%s", TR_G(collectors)[i].host, TR_G(collectors)[i].port);
+        if (!TR_G(collectors)[i].initialized) {
+            continue;
+        }
+        snprintf(bufHost, sizeof(bufHost), "%s:%i", TR_G(collectors)[i].host, TR_G(collectors)[i].port);
         snprintf(bufName, sizeof(bufName), "Collector: %d", i + 1);
         snprintf(initialized, sizeof(initialized), "Init: %d At: %ld", TR_G(collectors[i].initialized),
                  TR_G(collectors[i].initAt));

@@ -5,7 +5,11 @@
 #define PHP_TROCHILIDAE_UTILS_H
 
 #include <time.h>
+#include <limits.h>
+#include <stdlib.h>
 #include <sys/time.h>
+
+#define PHP_TROCHILIDAE_COLLECTORS_MAX 10
 
 typedef unsigned long uLong;
 typedef char byte;
@@ -16,5 +20,6 @@ typedef char byte;
 
 
 extern void d2tv(double x, struct timeval *tv);
+extern int str_to_int_with_default(const char *str, int default_value);
 
 #endif //PHP_TROCHILIDAE_UTILS_H
