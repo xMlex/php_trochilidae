@@ -130,20 +130,12 @@ static const zend_function_entry functions[] = {
 };
 
 ZEND_INI_MH(onUpdateServerList) {
-    TR_G(server_list) = new_value->val;
-    //printf("onUpdateServerList: %s\n", TR_G(server_list));
-    update_server_list();
-    return true;
-}
-
-ZEND_INI_DISP(onServerListInit) {
-    if (type == ZEND_INI_DISPLAY_ORIG && ini_entry->modified && ini_entry->orig_value) {
-        TR_G(server_list) = ini_entry->orig_value->val;
-    } else if (ini_entry->value) {
-        TR_G(server_list) = ini_entry->value->val;
+    if (!new_value) {
+        return FAILURE;
     }
-    //printf("onServerListInit: %s\n", TR_G(server_list));
+    TR_G(server_list) = new_value->val;
     update_server_list();
+    return SUCCESS;
 }
 
 ZEND_INI_DISP(TrEnabled) {
@@ -155,12 +147,8 @@ ZEND_INI_DISP(TrEnabled) {
 }
 
 PHP_INI_BEGIN()
-                STD_PHP_INI_ENTRY_EX
-                ("trochilidae.enabled", "1", PHP_INI_ALL, OnUpdateBool, enabled, zend_trochilidae_globals,
-                 trochilidae_globals, TrEnabled)
-                STD_PHP_INI_ENTRY_EX
-                ("trochilidae.server_list", "localhost", PHP_INI_ALL, onUpdateServerList, server_list, zend_trochilidae_globals,
-                 trochilidae_globals, onServerListInit)
+                STD_PHP_INI_ENTRY_EX("trochilidae.enabled", "0", PHP_INI_ALL, OnUpdateBool, enabled, zend_trochilidae_globals, trochilidae_globals, TrEnabled)
+                STD_PHP_INI_ENTRY("trochilidae.server_list", NULL, PHP_INI_ALL, onUpdateServerList, server_list, zend_trochilidae_globals, trochilidae_globals)
 PHP_INI_END()
 
 static PHP_MINIT_FUNCTION(trochilidae) {
@@ -264,7 +252,7 @@ static int send_data() {
                              cnt, errorBuf, TR_G(collectors)[i].host, TR_G(collectors)[i].port
             );
         }
-        //printf("send_data: %zu to %s:%d\n", cnt, TR_G(collectors)[i].host, TR_G(collectors)[i].port);
+        printf("send_data: %zu to %s:%d\n", cnt, TR_G(collectors)[i].host, TR_G(collectors)[i].port);
     }
 
 
