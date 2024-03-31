@@ -2,7 +2,9 @@
 <?php
 error_reporting(E_ALL);
 //print_r($_SERVER);
-echo 'trochilidae.enable: ', ini_get('trochilidae.enable'), PHP_EOL;
+echo 'trochilidae.enabled: ', ini_get('trochilidae.enabled'), PHP_EOL;
+ini_set('trochilidae.enabled', '1');
+echo 'trochilidae.enabled: ', ini_get('trochilidae.enabled'), PHP_EOL;
 echo 'trochilidae.server_list: ', ini_get('trochilidae.server_list'), PHP_EOL;
 ini_set('trochilidae.server_list', 'localhost,192.168.1.2:999');
 
