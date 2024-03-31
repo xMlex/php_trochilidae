@@ -331,7 +331,6 @@ static PHP_MINFO_FUNCTION(trochilidae) {
 
     php_info_print_table_start();
     php_info_print_table_header(2, "Trochilidae", "Info");
-    php_info_print_table_row(2, "Support enabled", "enabled");
     php_info_print_table_row(2, "Version", PHP_TROCHILIDAE_VERSION);
 
     snprintf(bufName, sizeof(bufName), "%lu", TR_G(requestCount));
