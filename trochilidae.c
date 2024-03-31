@@ -339,9 +339,6 @@ static PHP_MINFO_FUNCTION(trochilidae) {
     snprintf(bufName, sizeof(bufName), "%lu AVG: %lu", TR_G(bytesSend), TR_G(bytesSend) / TR_G(requestCount));
     php_info_print_table_row(2, "Bytes send", bufName);
 
-//    snprintf(bufName, sizeof(bufName), "%d ", getpid());
-//    php_info_print_table_row(3, "PID", bufName, "");
-
     snprintf(bufName, sizeof(bufName), "%d", *tr_network_get_domain_resolve_cache_size());
     php_info_print_table_row(2, "DNS Resolve cache count:", bufName);
 
