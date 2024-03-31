@@ -330,8 +330,9 @@ static PHP_MINFO_FUNCTION(trochilidae) {
     char bufHost[256], bufName[32], initialized[32];
 
     php_info_print_table_start();
-    php_info_print_table_header(3, "Trochilidae", "Info", "Additional");
-    php_info_print_table_row(3, "Support enabled", "enabled", PHP_TROCHILIDAE_VERSION);
+    php_info_print_table_header(3, "Trochilidae", "Info");
+    php_info_print_table_row(2, "Support enabled", "enabled");
+    php_info_print_table_row(2, "Version", PHP_TROCHILIDAE_VERSION);
 
     snprintf(bufName, sizeof(bufName), "%lu", TR_G(requestCount));
     php_info_print_table_row(2, "Requests", bufName);
@@ -346,7 +347,7 @@ static PHP_MINFO_FUNCTION(trochilidae) {
 //    php_info_print_table_row(3, "PID", bufName, "");
 
     snprintf(bufName, sizeof(bufName), "%d", *tr_network_get_domain_resolve_cache_size());
-    php_info_print_table_row(3, "DNS Resolve cache count:", bufName, "");
+    php_info_print_table_row(2, "DNS Resolve cache count:", bufName);
 
     for (int i = 0; i < collector_count; ++i) {
         if (!TR_G(collectors)[i].initialized) {
@@ -356,7 +357,7 @@ static PHP_MINFO_FUNCTION(trochilidae) {
         snprintf(bufName, sizeof(bufName), "Collector: %d", i + 1);
         snprintf(initialized, sizeof(initialized), "Init: %d At: %ld", TR_G(collectors[i].initialized),
                  TR_G(collectors[i].initAt));
-        php_info_print_table_row(3, bufName, bufHost, initialized);
+        php_info_print_table_row(2, bufName, bufHost);
     }
     php_info_print_table_end();
 
