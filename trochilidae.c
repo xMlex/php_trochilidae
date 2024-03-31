@@ -358,11 +358,6 @@ static PHP_MINFO_FUNCTION(trochilidae) {
     }
     php_info_print_table_end();
 
-    php_info_print_table_start();
-    php_info_print_table_header(2, "Trochilidae support", "Info");
-    php_info_print_table_row(2, "Extension version", PHP_TROCHILIDAE_VERSION);
-    php_info_print_table_end();
-
     DISPLAY_INI_ENTRIES();
 }
 
