@@ -330,18 +330,15 @@ static PHP_MINFO_FUNCTION(trochilidae) {
     char bufHost[256], bufName[32], initialized[32];
 
     php_info_print_table_start();
-    php_info_print_table_header(3, "Trochilidae", "Info");
+    php_info_print_table_header(2, "Trochilidae", "Info");
     php_info_print_table_row(2, "Support enabled", "enabled");
     php_info_print_table_row(2, "Version", PHP_TROCHILIDAE_VERSION);
 
     snprintf(bufName, sizeof(bufName), "%lu", TR_G(requestCount));
     php_info_print_table_row(2, "Requests", bufName);
 
-    snprintf(bufName, sizeof(bufName), "%lu", TR_G(bytesSend));
+    snprintf(bufName, sizeof(bufName), "%lu AVG: %lu", TR_G(bytesSend), TR_G(bytesSend) / TR_G(requestCount));
     php_info_print_table_row(2, "Bytes send", bufName);
-
-    snprintf(bufName, sizeof(bufName), "%lu", TR_G(bytesSend) / TR_G(requestCount));
-    php_info_print_table_row(2, "Bytes avg", bufName);
 
 //    snprintf(bufName, sizeof(bufName), "%d ", getpid());
 //    php_info_print_table_row(3, "PID", bufName, "");
