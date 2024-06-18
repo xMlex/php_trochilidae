@@ -32,4 +32,8 @@ echo 'trochilidae_timer_stop', PHP_EOL;
 
 var_dump(trochilidae_timer_get_info());
 
+$hostname = bin2hex(random_bytes(68));
+echo "trochilidae_set_hostname('$hostname')", PHP_EOL;
+trochilidae_set_hostname($hostname);
+
 echo 'OK', PHP_EOL;

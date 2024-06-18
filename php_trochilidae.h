@@ -1,7 +1,7 @@
 #ifndef PHP_TROCHILIDAE_H
 #define PHP_TROCHILIDAE_H 1
 
-#define PHP_TROCHILIDAE_VERSION "0.0.5-dev"
+#define PHP_TROCHILIDAE_VERSION "0.0.6-dev"
 #define PHP_TROCHILIDAE_EXTNAME "trochilidae"
 #define PHP_TROCHILIDAE_MODE_CLI 0x01
 #define PHP_TROCHILIDAE_MODE_CGI 0x02
@@ -22,7 +22,7 @@
 ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
     bool enabled;
     bool modeCli;
-    char * server_list;
+    char *server_list;
     char hostName[128];
     byte packet[65535];
     TrClient collectors[PHP_TROCHILIDAE_COLLECTORS_MAX];

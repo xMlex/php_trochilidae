@@ -18,6 +18,7 @@ ZEND_DECLARE_MODULE_GLOBALS(trochilidae)
 size_t (*sapi_old_ub_write)(const char *str, size_t str_length);
 
 TrTimer *get_or_create_tr_timer(zend_string *timerName);
+
 void update_server_list();
 
 #ifdef COMPILE_DL_TROCHILIDAE
@@ -27,40 +28,52 @@ ZEND_GET_MODULE(trochilidae)
 int res_tr_timer;
 int collector_count = 0;
 
-PHP_FUNCTION (trochilidae_set_tag) {
+PHP_FUNCTION(trochilidae_set_tag) {
     zend_string *k;
     zend_string *v;
     ZEND_PARSE_PARAMETERS_START_EX(ZEND_PARSE_PARAMS_THROW, 2, 2)
-            Z_PARAM_STR(k)
-            Z_PARAM_STR(v)
+        Z_PARAM_STR(k)
+        Z_PARAM_STR(v)
     ZEND_PARSE_PARAMETERS_END();
 
     add_assoc_str(&TR_G(tags), k->val, v);
 }
 
-PHP_FUNCTION (trochilidae_timer_start) {
+PHP_FUNCTION(trochilidae_set_hostname) {
+    zend_string *k;
+    ZEND_PARSE_PARAMETERS_START_EX(ZEND_PARSE_PARAMS_THROW, 1, 1)
+        Z_PARAM_STR(k)
+    ZEND_PARSE_PARAMETERS_END();
+
+    int len = k->len;
+    if (len > sizeof(TR_G(hostName))) {
+        len = sizeof(TR_G(hostName)) - 1;
+    }
+    snprintf(TR_G(hostName), len, "%s", k->val);
+}
+
+PHP_FUNCTION(trochilidae_timer_start) {
     zend_string *timerName;
     ZEND_PARSE_PARAMETERS_START_EX(ZEND_PARSE_PARAMS_THROW, 1, 1)
-            Z_PARAM_STR(timerName)
+        Z_PARAM_STR(timerName)
     ZEND_PARSE_PARAMETERS_END();
     tr_timer_start(get_or_create_tr_timer(timerName));
     RETURN_TRUE;
 }
 
 TrTimer *get_or_create_tr_timer(zend_string *timerName) {
-    TrTimer* timer = NULL;
+    TrTimer *timer = NULL;
     zend_ulong idx;
     zend_string *key;
     zval *val;
 
-    ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(&TR_G(timers)), idx, key, val)
-            {
-                if (timer == NULL && zend_string_equals(key, timerName)) {
-                    //printf(" get_or_create_tr_timer: found %s \n", key->val);
-                    timer = (TrTimer *) Z_RES_VAL_P(val);
-                    break;
-                }
+    ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(&TR_G(timers)), idx, key, val) {
+            if (timer == NULL && zend_string_equals(key, timerName)) {
+                //printf(" get_or_create_tr_timer: found %s \n", key->val);
+                timer = (TrTimer *) Z_RES_VAL_P(val);
+                break;
             }
+        }
     ZEND_HASH_FOREACH_END();
 
     if (!timer) {
@@ -72,7 +85,7 @@ TrTimer *get_or_create_tr_timer(zend_string *timerName) {
 }
 
 void update_server_list() {
-    DomainPortEntry * pairs = parse_domain_port_pairs(TR_G(server_list), &collector_count);
+    DomainPortEntry *pairs = parse_domain_port_pairs(TR_G(server_list), &collector_count);
     if (collector_count > PHP_TROCHILIDAE_COLLECTORS_MAX) {
         collector_count = PHP_TROCHILIDAE_COLLECTORS_MAX;
     }
@@ -91,10 +104,10 @@ void update_server_list() {
     free(pairs);
 }
 
-PHP_FUNCTION (trochilidae_timer_stop) {
+PHP_FUNCTION(trochilidae_timer_stop) {
     zend_string *timerName;
     ZEND_PARSE_PARAMETERS_START_EX(ZEND_PARSE_PARAMS_THROW, 1, 1)
-            Z_PARAM_STR(timerName)
+        Z_PARAM_STR(timerName)
     ZEND_PARSE_PARAMETERS_END();
     tr_timer_stop(get_or_create_tr_timer(timerName));
     RETURN_TRUE;
@@ -107,26 +120,28 @@ static PHP_FUNCTION(trochilidae_timer_get_info) {
     zval *val;
     zval timers, timer_info;
     array_init(&timers);
-    ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(&TR_G(timers)), idx, key, val)
-            {
-                array_init(&timer_info);
-                add_assoc_long(&timer_info, "startCount", ((TrTimer *) Z_RES_VAL_P(val))->startCount);
-                add_assoc_long(&timer_info, "startCount", ((TrTimer *) Z_RES_VAL_P(val))->startCount);
-                add_assoc_long(&timer_info, "stopCount", ((TrTimer *) Z_RES_VAL_P(val))->stopCount);
-                add_assoc_double(&timer_info, "totalExecutionTime", timeval_to_float(((TrTimer *) Z_RES_VAL_P(val))->totalExecutionTime));
-                add_assoc_double(&timer_info, "lastExecutionTime", timeval_to_float(((TrTimer *) Z_RES_VAL_P(val))->executionTime));
-                add_next_index_zval(&timers, &timer_info);
-            }
+    ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(&TR_G(timers)), idx, key, val) {
+            array_init(&timer_info);
+            add_assoc_long(&timer_info, "startCount", ((TrTimer *) Z_RES_VAL_P(val))->startCount);
+            add_assoc_long(&timer_info, "startCount", ((TrTimer *) Z_RES_VAL_P(val))->startCount);
+            add_assoc_long(&timer_info, "stopCount", ((TrTimer *) Z_RES_VAL_P(val))->stopCount);
+            add_assoc_double(&timer_info, "totalExecutionTime",
+                             timeval_to_float(((TrTimer *) Z_RES_VAL_P(val))->totalExecutionTime));
+            add_assoc_double(&timer_info, "lastExecutionTime",
+                             timeval_to_float(((TrTimer *) Z_RES_VAL_P(val))->executionTime));
+            add_next_index_zval(&timers, &timer_info);
+        }
     ZEND_HASH_FOREACH_END();
     add_assoc_zval(return_value, "timers", &timers);
 }
 
 static const zend_function_entry functions[] = {
-        PHP_FE(trochilidae_set_tag, arginfo_trochilidae_set_tag)
-        PHP_FE(trochilidae_timer_start, arginfo_trochilidae_timer_start)
-        PHP_FE(trochilidae_timer_stop, arginfo_trochilidae_timer_stop)
-        PHP_FE(trochilidae_timer_get_info, arginfo_trochilidae_get_info)
-        PHP_FE_END
+    PHP_FE(trochilidae_set_tag, arginfo_trochilidae_set_tag)
+    PHP_FE(trochilidae_set_hostname, arginfo_trochilidae_set_hostname)
+    PHP_FE(trochilidae_timer_start, arginfo_trochilidae_timer_start)
+    PHP_FE(trochilidae_timer_stop, arginfo_trochilidae_timer_stop)
+    PHP_FE(trochilidae_timer_get_info, arginfo_trochilidae_get_info)
+    PHP_FE_END
 };
 
 ZEND_INI_MH(onUpdateServerList) {
@@ -139,8 +154,10 @@ ZEND_INI_MH(onUpdateServerList) {
 }
 
 PHP_INI_BEGIN()
- STD_PHP_INI_BOOLEAN("trochilidae.enabled", "1", PHP_INI_ALL, OnUpdateBool, enabled, zend_trochilidae_globals, trochilidae_globals)
- STD_PHP_INI_ENTRY("trochilidae.server_list", NULL, PHP_INI_ALL, onUpdateServerList, server_list, zend_trochilidae_globals, trochilidae_globals)
+    STD_PHP_INI_BOOLEAN("trochilidae.enabled", "1", PHP_INI_ALL, OnUpdateBool, enabled, zend_trochilidae_globals,
+                        trochilidae_globals)
+    STD_PHP_INI_ENTRY("trochilidae.server_list", NULL, PHP_INI_ALL, onUpdateServerList, server_list,
+                      zend_trochilidae_globals, trochilidae_globals)
 PHP_INI_END()
 
 static PHP_MINIT_FUNCTION(trochilidae) {
@@ -200,7 +217,7 @@ static int send_data() {
         d2tv(rt, &requestTV);
     } else {
         struct timeval requestTVtmp;
-        gettimeofday(&requestTV, (void *)&requestTVtmp);
+        gettimeofday(&requestTV, (void *) &requestTVtmp);
     }
     tr_client_w_tv(TR_G(packet), &pos, &requestTV);
 
@@ -212,6 +229,7 @@ static int send_data() {
     tr_client_w_q(TR_G(packet), &pos, &TR_G(requestData).response_http_size);
     tr_client_w_d(TR_G(packet), &pos, &TR_G(requestData).responseCode);
     tr_client_w_str(TR_G(packet), &pos, TR_G(hostName));
+
     if (TR_G(requestData).request_domain) {
         tr_client_w_str(TR_G(packet), &pos, TR_G(requestData).request_domain);
     } else {
@@ -248,7 +266,6 @@ static int send_data() {
     }
 
 
-
     return SUCCESS;
 }
 
@@ -261,7 +278,7 @@ static void tr_client_w_argvs(size_t *pos) {
     zval *argvList = tr_fetch_global_var_ar(strdup("argv"));
     if (argvList) {
         argvCount = zend_array_count(Z_ARR_P(argvList));
-        if (argvCount-1 <= 0) {
+        if (argvCount - 1 <= 0) {
             argvCount = 0;
             tr_client_w_h(TR_G(packet), pos, &argvCount);
         }
@@ -273,14 +290,13 @@ static void tr_client_w_argvs(size_t *pos) {
         zend_string *key;
         zval *val;
         int skippedFirst = false;
-        ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(argvList), idx, key, val)
-                {
-                    if (skippedFirst == true) {
-                        tr_client_w_str(TR_G(packet), pos, Z_STRVAL_P(val));
-                    } else {
-                        skippedFirst = true;
-                    }
+        ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(argvList), idx, key, val) {
+                if (skippedFirst == true) {
+                    tr_client_w_str(TR_G(packet), pos, Z_STRVAL_P(val));
+                } else {
+                    skippedFirst = true;
                 }
+            }
         ZEND_HASH_FOREACH_END();
     }
 }
@@ -293,13 +309,13 @@ static void tr_client_w_tags(size_t *pos) {
     }
     zend_string *key;
     zval *val;
-    ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARR_P(&TR_G(tags)), key, val)
-            {
-                tr_client_w_str(TR_G(packet), pos, key->val);
-                tr_client_w_str(TR_G(packet), pos, Z_STRVAL_P(val));
-            }
+    ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARR_P(&TR_G(tags)), key, val) {
+            tr_client_w_str(TR_G(packet), pos, key->val);
+            tr_client_w_str(TR_G(packet), pos, Z_STRVAL_P(val));
+        }
     ZEND_HASH_FOREACH_END();
 }
+
 static void tr_client_w_timers(size_t *pos) {
     uint32_t count = zend_array_count(Z_ARR_P(&TR_G(timers)));
     tr_client_w_h(TR_G(packet), pos, &count);
@@ -308,12 +324,11 @@ static void tr_client_w_timers(size_t *pos) {
     }
     zend_string *key;
     zval *val;
-    ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARR_P(&TR_G(timers)), key, val)
-            {
-                tr_client_w_str(TR_G(packet), pos, key->val);
-                tr_client_w_d(TR_G(packet), pos, &((TrTimer *) Z_RES_VAL_P(val))->startCount);
-                tr_client_w_tv(TR_G(packet), pos, &((TrTimer *) Z_RES_VAL_P(val))->totalExecutionTime);
-            }
+    ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARR_P(&TR_G(timers)), key, val) {
+            tr_client_w_str(TR_G(packet), pos, key->val);
+            tr_client_w_d(TR_G(packet), pos, &((TrTimer *) Z_RES_VAL_P(val))->startCount);
+            tr_client_w_tv(TR_G(packet), pos, &((TrTimer *) Z_RES_VAL_P(val))->totalExecutionTime);
+        }
     ZEND_HASH_FOREACH_END();
 }
 
@@ -323,7 +338,6 @@ static void php_trochilidae_ctor_globals(zend_trochilidae_globals *globals) {
 }
 
 static void php_trochilidae_dtor_globals(zend_trochilidae_globals *globals) {
-
 }
 
 static PHP_MINFO_FUNCTION(trochilidae) {
@@ -358,16 +372,16 @@ static PHP_MINFO_FUNCTION(trochilidae) {
 }
 
 zend_module_entry trochilidae_module_entry = {
-        STANDARD_MODULE_HEADER,
-        PHP_TROCHILIDAE_EXTNAME,
-        functions,
-        PHP_MINIT(trochilidae),
-        PHP_MSHUTDOWN(trochilidae),
-        PHP_RINIT(trochilidae),
-        PHP_RSHUTDOWN(trochilidae),
-        PHP_MINFO(trochilidae),
-        PHP_TROCHILIDAE_VERSION,
-        STANDARD_MODULE_PROPERTIES
+    STANDARD_MODULE_HEADER,
+    PHP_TROCHILIDAE_EXTNAME,
+    functions,
+    PHP_MINIT(trochilidae),
+    PHP_MSHUTDOWN(trochilidae),
+    PHP_RINIT(trochilidae),
+    PHP_RSHUTDOWN(trochilidae),
+    PHP_MINFO(trochilidae),
+    PHP_TROCHILIDAE_VERSION,
+    STANDARD_MODULE_PROPERTIES
 };
 
 static void collect_metrics_before_request() {
@@ -432,7 +446,7 @@ static inline zval *tr_fetch_global_var_ar(char *name) {
         zend_string_release(findName);
         if (Z_TYPE_P(tmp) == IS_ARRAY && zend_array_count(Z_ARR_P(tmp)) > 0) {
             return tmp;
-        } else if(Z_TYPE_P(tmp) != IS_NULL) {
+        } else if (Z_TYPE_P(tmp) != IS_NULL) {
             return tmp;
         }
     }
