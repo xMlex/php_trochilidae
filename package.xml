@@ -50,12 +50,22 @@ http://pear.php.net/dtd/package-2.0.xsd">
     <dependencies>
         <required>
             <php>
-                <min>7.4.0</min>
+                <min>7.0.0</min>
             </php>
             <pearinstaller>
                 <min>1.4.0b1</min>
             </pearinstaller>
         </required>
+        <optional>
+            <extension>
+                <name>igbinary</name>
+                <min>2.0</min>
+            </extension>
+            <extension>
+                <name>msgpack</name>
+                <min>2.0</min>
+            </extension>
+        </optional>
     </dependencies>
     <providesextension>trochilidae</providesextension>
     <extsrcrelease>
