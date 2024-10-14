@@ -55,6 +55,9 @@ http://pear.php.net/dtd/package-2.0.xsd">
         </required>
     </dependencies>
     <providesextension>trochilidae</providesextension>
+    <extsrcrelease>
+        <configureoption name="with-zlib-dir"             prompt="zlib directory"             default="no"/>
+    </extsrcrelease>
     <changelog>
         <release>
             <date>2024-06-18</date>
