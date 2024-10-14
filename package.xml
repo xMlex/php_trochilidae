@@ -3,9 +3,9 @@
 http://pear.php.net/dtd/tasks-1.0.xsd
 http://pear.php.net/dtd/package-2.0
 http://pear.php.net/dtd/package-2.0.xsd">
-    <name>memcached</name>
+    <name>trochilidae</name>
     <channel>pecl.php.net</channel>
-    <summary>PHP extension for interfacing with memcached via libmemcached library</summary>
+    <summary>PHP extension for interfacing with trochilidae</summary>
     <description>
         A PHP extension for metrics collect
     </description>
