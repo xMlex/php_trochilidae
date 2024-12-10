@@ -36,7 +36,7 @@ PHP_FUNCTION(trochilidae_set_tag) {
         Z_PARAM_STR(v)
     ZEND_PARSE_PARAMETERS_END();
 
-    add_assoc_str(&TR_G(tags), k->val, v);
+    add_assoc_str(&TR_G(tags), ZSTR_VAL(k), zend_string_copy(v));
 }
 
 PHP_FUNCTION(trochilidae_set_hostname) {
@@ -45,11 +45,8 @@ PHP_FUNCTION(trochilidae_set_hostname) {
         Z_PARAM_STR(k)
     ZEND_PARSE_PARAMETERS_END();
 
-    int len = k->len;
-    if (len > sizeof(TR_G(hostName))) {
-        len = sizeof(TR_G(hostName)) - 1;
-    }
-    snprintf(TR_G(hostName), len, "%s", k->val);
+    printf("trochilidae_set_hostname, size: %lu\n", sizeof(TR_G(hostName)));
+    strlcpy(TR_G(hostName), ZSTR_VAL(k), sizeof(TR_G(hostName)) - 1);
 }
 
 PHP_FUNCTION(trochilidae_timer_start) {
@@ -62,41 +59,43 @@ PHP_FUNCTION(trochilidae_timer_start) {
 }
 
 TrTimer *get_or_create_tr_timer(zend_string *timerName) {
-    TrTimer *timer = NULL;
-    zend_ulong idx;
-    zend_string *key;
-    zval *val;
+    const zval *val = NULL;
 
-    ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(&TR_G(timers)), idx, key, val) {
-            if (timer == NULL && zend_string_equals(key, timerName)) {
-                //printf(" get_or_create_tr_timer: found %s \n", key->val);
-                timer = (TrTimer *) Z_RES_VAL_P(val);
-                break;
-            }
-        }
-    ZEND_HASH_FOREACH_END();
+    if ((val = zend_hash_find(Z_ARR_P(&TR_G(timers)), timerName)) != NULL) {
+        return (TrTimer *) Z_RES_VAL_P(val);
+    }
 
-    if (!timer) {
-        timer = tr_timer_new(timerName->val);
-        timer->resource = zend_register_resource(timer, res_tr_timer);
-        add_assoc_resource(&TR_G(timers), timerName->val, timer->resource);
-    };
+    TrTimer *timer = tr_timer_new(timerName->val);
+    timer->resource = zend_register_resource(timer, res_tr_timer);
+    add_assoc_resource(&TR_G(timers), timerName->val, timer->resource);
+
     return timer;
 }
 
 void update_server_list() {
     DomainPortEntry *pairs = parse_domain_port_pairs(TR_G(server_list), &collector_count);
-    if (collector_count > PHP_TROCHILIDAE_COLLECTORS_MAX) {
-        collector_count = PHP_TROCHILIDAE_COLLECTORS_MAX;
-    }
-    for (int i = 0; i < collector_count; i++) {
-        //printf("Domain[%d]: %s, Port: %d\n", i, pairs[i].domain, pairs[i].port);
-        tr_client_destroy(&TR_G(collectors)[i]);
 
-        TR_G(collectors)[i].host = malloc(strlen(pairs[i].domain) + 1);
-        strcpy(TR_G(collectors)[i].host, pairs[i].domain);
+    // Ограничение количества collectors
+    collector_count = (collector_count > PHP_TROCHILIDAE_COLLECTORS_MAX)
+        ? PHP_TROCHILIDAE_COLLECTORS_MAX
+        : collector_count;
+
+    // Предварительное освобождение старых клиентов
+    for (int i = 0; i < collector_count; i++) {
+        tr_client_destroy(&TR_G(collectors)[i]);
+    }
+
+    // Инициализация новых клиентов
+    for (int i = 0; i < collector_count; i++) {
+        TR_G(collectors)[i].host = strdup(pairs[i].domain); // используем strdup для безопасного копирования строки
+        if (TR_G(collectors)[i].host == NULL) {
+            continue; // Если не удалось выделить память для строки, пропускаем эту итерацию
+        }
+
         TR_G(collectors)[i].port = pairs[i].port;
+
         if (!tr_client_init(&TR_G(collectors)[i])) {
+            free(TR_G(collectors)[i].host); // Если инициализация не удалась, освобождаем память
             continue;
         }
     }
@@ -170,6 +169,9 @@ static PHP_MINIT_FUNCTION(trochilidae) {
 
     res_tr_timer = zend_register_list_destructors_ex(res_tr_timer_dtor, NULL, "res_trochilidae_timer", module_number);
 
+    array_init(&TR_G(tags));
+    array_init(&TR_G(timers));
+
     return SUCCESS;
 }
 
@@ -182,79 +184,121 @@ static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
 
 static PHP_RINIT_FUNCTION(trochilidae) {
     collect_metrics_before_request();
-    array_init(&TR_G(tags));
-    array_init(&TR_G(timers));
     return SUCCESS;
 }
 
 static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
-    if (TR_G(enabled) == false) {
-        zval_dtor(&TR_G(tags));
-        return SUCCESS;
+    if (TR_G(enabled) != false) {
+        send_data();
     }
-    send_data();
-    zval_dtor(&TR_G(tags));
-    zval_dtor(&TR_G(timers));
+    zend_hash_clean(Z_ARRVAL_P(&TR_G(tags)));
+    zend_hash_clean(Z_ARRVAL_P(&TR_G(timers)));
     return SUCCESS;
 }
+
+
 
 static int send_data() {
     collect_metrics_after_request();
 
     uint8_t modeType = PHP_TROCHILIDAE_MODE_CGI;
-    size_t pos = 2, sizePos = 0;
-
     if (TR_G(modeCli)) {
         modeType = PHP_TROCHILIDAE_MODE_CLI;
     }
 
-    tr_client_w_c(TR_G(packet), &pos, &modeType);
-    // REQUEST_TIME_FLOAT
-    struct timeval requestTV;
-    zval *requestTime = tr_fetch_global_var_ar(strdup("REQUEST_TIME_FLOAT"));
-    if (requestTime) {
-        double rt = zval_get_double(requestTime);
-        d2tv(rt, &requestTV);
-    } else {
-        struct timeval requestTVtmp;
-        gettimeofday(&requestTV, (void *) &requestTVtmp);
-    }
-    tr_client_w_tv(TR_G(packet), &pos, &requestTV);
+    struct timeval requestTV = {};
 
-    tr_client_w_c(TR_G(packet), &pos, &TR_G(requestData).request_method);
-    tr_client_w_q(TR_G(packet), &pos, &TR_G(requestData).mem_peak_usage);
-    tr_client_w_tv(TR_G(packet), &pos, &TR_G(requestData).executionTime);
-    tr_client_w_tv(TR_G(packet), &pos, &TR_G(requestData).CPUUsageUserTime);
-    tr_client_w_tv(TR_G(packet), &pos, &TR_G(requestData).CPUUsageSystemTime);
-    tr_client_w_q(TR_G(packet), &pos, &TR_G(requestData).response_http_size);
-    tr_client_w_d(TR_G(packet), &pos, &TR_G(requestData).responseCode);
-    tr_client_w_str(TR_G(packet), &pos, TR_G(hostName));
-
+    char *request_domain;
     if (TR_G(requestData).request_domain) {
-        tr_client_w_str(TR_G(packet), &pos, TR_G(requestData).request_domain);
+        request_domain = TR_G(requestData).request_domain;
     } else {
-        tr_client_w_str(TR_G(packet), &pos, strdup(sapi_module.name));
+        request_domain = strdup(sapi_module.name);
     }
+
+    char *request_uri;
     if (TR_G(requestData).request_uri) {
-        tr_client_w_str(TR_G(packet), &pos, TR_G(requestData).request_uri);
+        request_uri = TR_G(requestData).request_uri;
     } else {
-        tr_client_w_str(TR_G(packet), &pos, strdup(sapi_module.name));
+        request_uri = strdup(sapi_module.name);
     }
 
-    tr_client_w_argvs(&pos);
-    // tags
-    tr_client_w_tags(&pos);
-    // timers
-    tr_client_w_timers(&pos);
+    tr_array_init(&TR_G(msg), 0);
+    tr_array_write_tv(&TR_G(msg), &TR_G(requestData).start_time);
+    tr_array_write_byte(&TR_G(msg), &modeType);
+    tr_array_write_byte(&TR_G(msg), &TR_G(requestData).request_method);
+    tr_array_write_long(&TR_G(msg), &TR_G(requestData).mem_peak_usage);
+    tr_array_write_tv(&TR_G(msg), &TR_G(requestData).executionTime);
+    tr_array_write_tv(&TR_G(msg), &TR_G(requestData).CPUUsageUserTime);
+    tr_array_write_tv(&TR_G(msg), &TR_G(requestData).CPUUsageSystemTime);
+    tr_array_write_long(&TR_G(msg), &TR_G(requestData).response_http_size);
+    tr_array_write_word(&TR_G(msg), &TR_G(requestData).responseCode);
 
-    TR_G(bytesSend) += pos;
-    // total pkg size
-    tr_client_w_h(TR_G(packet), &sizePos, &pos);
+    tr_array_write_string(&TR_G(msg), TR_G(hostName));
+    tr_array_write_string(&TR_G(msg), request_domain);
+    tr_array_write_string(&TR_G(msg), request_uri);
+
+    //argv
+    uint32_t argvCount = 0;
+    const zval *argvList = tr_fetch_global_var_ar(strdup("argv"));
+    argvCount = zend_array_count(Z_ARR_P(argvList));
+    if (TR_G(modeCli)) {
+        argvCount--;
+    }
+    tr_array_write_short(&TR_G(msg), &argvCount); // count
+    if (argvCount > 0) {
+        zend_string *key;
+        zval *val;
+        int skippedFirst = TR_G(modeCli);  // Устанавливаем флаг пропуска первого
+
+        // Итерация по аргументам
+        ZEND_HASH_FOREACH_VAL(Z_ARR_P(argvList), val) {
+            if (skippedFirst) {
+                skippedFirst = false; // Пропускаем первый аргумент
+                tr_array_write_string(&TR_G(msg), NULL);
+            } else {
+                tr_array_write_string(&TR_G(msg), Z_STRVAL_P(val));
+            }
+        } ZEND_HASH_FOREACH_END();
+    }
+
+    //tags
+    const uint32_t tagCount = zend_array_count(Z_ARR_P(&TR_G(tags)));
+    tr_array_write_short(&TR_G(msg), &tagCount); // count
+    if (tagCount > 0) {
+        zend_string *key;
+        zval *val;
+        ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARR_P(&TR_G(tags)), key, val) {
+            tr_array_write_string_size(&TR_G(msg), key->val, key->len);
+            tr_array_write_string_size(&TR_G(msg), Z_STRVAL_P(val), Z_STRLEN_P(val));
+        }
+        ZEND_HASH_FOREACH_END();
+    }
+
+    // timers
+    const uint32_t timersCount = zend_array_count(Z_ARR_P(&TR_G(timers)));
+    tr_array_write_short(&TR_G(msg), &timersCount); // count
+    if (timersCount > 0) {
+        zend_string *key;
+        zval *val;
+        ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARR_P(&TR_G(timers)), key, val) {
+            tr_array_write_string(&TR_G(msg), key->val);
+            tr_array_write_word(&TR_G(msg), &((TrTimer *) Z_RES_VAL_P(val))->startCount);
+            tr_array_write_tv(&TR_G(msg), &((TrTimer *) Z_RES_VAL_P(val))->totalExecutionTime);
+        }
+        ZEND_HASH_FOREACH_END();
+    }
+
+    const size_t sizeMsg = tr_array_get_size(&TR_G(msg));
+
+    TR_G(bytesSend) += sizeMsg;
 
     // init clients
     for (int i = 0; i < collector_count; i++) {
         tr_client_refresh_server(&TR_G(collectors)[i]);
-        size_t cnt = tr_client_send(&TR_G(collectors)[i], &TR_G(packet), pos);
+
+        //printf("send_data: %zu to %s:%d\n", sizeMsg, TR_G(collectors)[i].host, TR_G(collectors)[i].port);
+
+        const ssize_t cnt = tr_client_send(&TR_G(collectors)[i], TR_G(msg).data, sizeMsg);
         if (cnt == -1) {
             char *errorBuf = strerror(errno);
             php_error_docref(NULL, E_NOTICE,
@@ -262,74 +306,12 @@ static int send_data() {
                              cnt, errorBuf, TR_G(collectors)[i].host, TR_G(collectors)[i].port
             );
         }
-        //printf("send_data: %zu to %s:%d\n", cnt, TR_G(collectors)[i].host, TR_G(collectors)[i].port);
     }
 
+    tr_array_free(&TR_G(msg));
 
     return SUCCESS;
-}
 
-static void tr_client_w_argvs(size_t *pos) {
-    uint32_t argvCount = 0;
-    if (!TR_G(modeCli)) {
-        tr_client_w_h(TR_G(packet), pos, &argvCount);
-        return;
-    }
-    zval *argvList = tr_fetch_global_var_ar(strdup("argv"));
-    if (argvList) {
-        argvCount = zend_array_count(Z_ARR_P(argvList));
-        if (argvCount - 1 <= 0) {
-            argvCount = 0;
-            tr_client_w_h(TR_G(packet), pos, &argvCount);
-        }
-    }
-    if (argvCount > 0 && argvList) {
-        argvCount = argvCount - 1;
-        tr_client_w_h(TR_G(packet), pos, &argvCount);
-        zend_ulong idx;
-        zend_string *key;
-        zval *val;
-        int skippedFirst = false;
-        ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(argvList), idx, key, val) {
-                if (skippedFirst == true) {
-                    tr_client_w_str(TR_G(packet), pos, Z_STRVAL_P(val));
-                } else {
-                    skippedFirst = true;
-                }
-            }
-        ZEND_HASH_FOREACH_END();
-    }
-}
-
-static void tr_client_w_tags(size_t *pos) {
-    uint32_t tagCount = zend_array_count(Z_ARR_P(&TR_G(tags)));
-    tr_client_w_h(TR_G(packet), pos, &tagCount);
-    if (tagCount <= 0) {
-        return;
-    }
-    zend_string *key;
-    zval *val;
-    ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARR_P(&TR_G(tags)), key, val) {
-            tr_client_w_str(TR_G(packet), pos, key->val);
-            tr_client_w_str(TR_G(packet), pos, Z_STRVAL_P(val));
-        }
-    ZEND_HASH_FOREACH_END();
-}
-
-static void tr_client_w_timers(size_t *pos) {
-    uint32_t count = zend_array_count(Z_ARR_P(&TR_G(timers)));
-    tr_client_w_h(TR_G(packet), pos, &count);
-    if (count <= 0) {
-        return;
-    }
-    zend_string *key;
-    zval *val;
-    ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARR_P(&TR_G(timers)), key, val) {
-            tr_client_w_str(TR_G(packet), pos, key->val);
-            tr_client_w_d(TR_G(packet), pos, &((TrTimer *) Z_RES_VAL_P(val))->startCount);
-            tr_client_w_tv(TR_G(packet), pos, &((TrTimer *) Z_RES_VAL_P(val))->totalExecutionTime);
-        }
-    ZEND_HASH_FOREACH_END();
 }
 
 static void php_trochilidae_ctor_globals(zend_trochilidae_globals *globals) {
@@ -388,6 +370,7 @@ static void collect_metrics_before_request() {
     TR_G(requestCount)++;
     struct rusage u;
     gettimeofday(&TR_G(requestData).executionTime, NULL);
+    gettimeofday(&TR_G(requestData).start_time, NULL);
     getrusage(RUSAGE_SELF, &u);
     tv_assign(&TR_G(requestData).CPUUsageUserTime, &u.ru_utime);
     tv_assign(&TR_G(requestData).CPUUsageSystemTime, &u.ru_stime);

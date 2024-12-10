@@ -1,3 +1,7 @@
 *.dep
 *.lo
 /.libs
+!tr_hooks.c
+!tr_hooks.h
+!tr_array.c
+!tr_array.h

@@ -10,6 +10,7 @@
 #include "trochilidae/utils.h"
 #include "trochilidae/tr_network.h"
 #include "trochilidae/tr_timer.h"
+#include "trochilidae/tr_array.h"
 
 #ifdef PHP_WIN32
 # define PHP_TROCHILIDAE_API __declspec(dllexport)
@@ -23,8 +24,9 @@ ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
     bool enabled;
     bool modeCli;
     char *server_list;
-    char hostName[128];
+    char hostName[HOST_NAME_MAX];
     byte packet[65535];
+    struct tr_array msg;
     TrClient collectors[PHP_TROCHILIDAE_COLLECTORS_MAX];
     TrRequestData requestData;
     zval tags;

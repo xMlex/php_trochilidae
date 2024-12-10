@@ -35,6 +35,11 @@
 
 #define MAX_DOMAIN_LENGTH 254
 
+#define CHUNK_HEADER_SIZE 21
+#define MAX_CHUNK_SIZE 65507   // Размер данных в одном UDP-пакете (идеал - 1400 байт)
+#define MAX_CHUNKS 256        // Максимальное количество чанков
+#define MIN_COMPRESSION_SIZE 2048 // Минимальный размер для сжатия данных
+
 typedef struct {
     uLong response_http_size;
     uLong mem_peak_usage;
@@ -45,6 +50,7 @@ typedef struct {
     char *request_domain;
 
     size_t req_count;
+    struct timeval start_time;
     struct timeval executionTime;
     struct timeval CPUUsageUserTime;
     struct timeval CPUUsageSystemTime;
@@ -58,6 +64,8 @@ typedef struct {
     time_t initAt;
     char *host;
     int port;
+    size_t chunk_size;
+    unsigned short chunk_count;
 } TrClient;
 
 typedef struct {
@@ -86,19 +94,7 @@ extern void tr_client_destroy(TrClient *client);
 
 extern int tr_client_set_addr_info(TrClient *client);
 
-extern size_t tr_client_send(TrClient *client, const void *buf, size_t size);
-
-extern void tr_client_w_h(char *buf, size_t *pos, void *c);
-
-extern void tr_client_w_str(char *buf, size_t *pos, char *str);
-
-extern void tr_client_w_c(char *buf, size_t *pos, void *c);
-
-extern void tr_client_w_d(char *buf, size_t *pos, void *c);
-
-extern void tr_client_w_q(char *buf, size_t *pos, void *c);
-
-extern void tr_client_w_tv(char *buf, size_t *pos, struct timeval *tv);
+extern ssize_t tr_client_send(TrClient *client, void *buf, size_t size);
 
 extern bool tr_client_refresh_server(TrClient *client);
 

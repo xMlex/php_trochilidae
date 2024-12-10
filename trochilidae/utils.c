@@ -19,3 +19,7 @@ int str_to_int_with_default(const char *str, int default_value) {
     }
     return (int)result;
 }
+
+unsigned long generate_random_ulong() {
+    return ((unsigned long)arc4random() << 32) | arc4random();
+}
