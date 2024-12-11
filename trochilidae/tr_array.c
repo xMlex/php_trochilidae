@@ -22,7 +22,6 @@ void tr_array_init(struct tr_array *self, size_t capacity) {
 }
 
 size_t tr_array_get_size(const struct tr_array *self) {
-    fprintf(stderr, "tr_array_get_size: %zu capacity: %zu position: %zu\n", self->size, self->capacity, self->position);
     return self->size;
 }
 

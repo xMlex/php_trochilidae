@@ -232,7 +232,7 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
     }
 
     const unsigned long packetId = generate_random_ulong();
-    fprintf(stderr, "[tr-send_chunks] packetId %llu, chunks: %d\n", packetId, total_chunks);
+    //fprintf(stderr, "[tr-send_chunks] packetId %llu, chunks: %d\n", packetId, total_chunks);
 
     if (setsockopt(client->socketFd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) < 0) {
         perror("[tr-send_chunks] setsockopt SO_SNDBUF failed");
@@ -261,13 +261,13 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         const ssize_t sent = sendto(client->socketFd, packet, current_chunk_size + CHUNK_HEADER_SIZE, 0,
                               (const struct sockaddr *)&client->sock_address_in, sizeof(client->sock_address_in));
         totalSentSize += sent;
-        fprintf(stderr, "[tr-send_chunks] process packetId %llu, chunk: %d, sent: %lu\n", packetId, i, sent);
+        //fprintf(stderr, "[tr-send_chunks] process packetId %llu, chunk: %d, sent: %lu\n", packetId, i, sent);
         if (sent < 0) {
             perror("[tr-send_chunks] sendto error");
             return -1;
         }
     }
-    fprintf(stderr, "[tr-send_chunks] Total packetId %llu, chunk: %d, sent: %lu\n", packetId, i, totalSentSize);
+    //fprintf(stderr, "[tr-send_chunks] Total packetId %llu, chunk: %d, sent: %lu\n", packetId, i, totalSentSize);
     return totalSentSize;
 }
 
