@@ -95,7 +95,6 @@ void update_server_list() {
 
         if (!tr_client_init(&TR_G(collectors)[i])) {
             free(TR_G(collectors)[i].host); // Если инициализация не удалась, освобождаем память
-            continue;
         }
     }
 
@@ -120,7 +119,6 @@ static PHP_FUNCTION(trochilidae_timer_get_info) {
     array_init(&timers);
     ZEND_HASH_FOREACH_KEY_VAL(Z_ARR_P(&TR_G(timers)), idx, key, val) {
             array_init(&timer_info);
-            add_assoc_long(&timer_info, "startCount", ((TrTimer *) Z_RES_VAL_P(val))->startCount);
             add_assoc_long(&timer_info, "startCount", ((TrTimer *) Z_RES_VAL_P(val))->startCount);
             add_assoc_long(&timer_info, "stopCount", ((TrTimer *) Z_RES_VAL_P(val))->stopCount);
             add_assoc_double(&timer_info, "totalExecutionTime",
@@ -239,23 +237,13 @@ static int send_data() {
     uint32_t argvCount = 0;
     const zval *argvList = tr_fetch_global_var_ar(strdup("argv"));
     argvCount = zend_array_count(Z_ARR_P(argvList));
-    if (TR_G(modeCli)) {
-        argvCount--;
-    }
     tr_array_write_short(&TR_G(msg), &argvCount); // count
     if (argvCount > 0) {
         zend_string *key;
         zval *val;
-        int skippedFirst = TR_G(modeCli);  // Устанавливаем флаг пропуска первого
-
         // Итерация по аргументам
         ZEND_HASH_FOREACH_VAL(Z_ARR_P(argvList), val) {
-            if (skippedFirst) {
-                skippedFirst = false; // Пропускаем первый аргумент
-                tr_array_write_string(&TR_G(msg), NULL);
-            } else {
-                tr_array_write_string(&TR_G(msg), Z_STRVAL_P(val));
-            }
+            tr_array_write_string(&TR_G(msg), Z_STRVAL_P(val));
         } ZEND_HASH_FOREACH_END();
     }
 

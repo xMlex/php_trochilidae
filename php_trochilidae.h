@@ -25,7 +25,6 @@ ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
     bool modeCli;
     char *server_list;
     char hostName[HOST_NAME_MAX];
-    byte packet[65535];
     struct tr_array msg;
     TrClient collectors[PHP_TROCHILIDAE_COLLECTORS_MAX];
     TrRequestData requestData;

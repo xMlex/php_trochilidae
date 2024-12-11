@@ -4,10 +4,12 @@
 #ifndef PHP_TROCHILIDAE_UTILS_H
 #define PHP_TROCHILIDAE_UTILS_H
 
+#include <config.h>
 #include <time.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <sys/time.h>
 
 #define PHP_TROCHILIDAE_COLLECTORS_MAX 10

@@ -2,6 +2,7 @@ PHP_ARG_ENABLE(trochilidae, whether to enable trochilidae support, [ --enable-tr
 
 if test "$PHP_TROCHILIDAE" != "no"; then
 
+  PHP_CHECK_FUNC(arc4random)
 
   AC_DEFINE(HAVE_TROCHILIDAE, 1, [Whether you have Trochilidae])
   trochilidae_sources="trochilidae/utils.c
