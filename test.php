@@ -25,12 +25,12 @@ function generateRandomString($length = 10) {
 
 trochilidae_set_tag("controller", "testController");
 trochilidae_set_tag("action", "testAction");
-trochilidae_set_tag("company", $company = "testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany testCompany ");
+trochilidae_set_tag("company", $company = "testCompany");
 // trochilidae_set_tag("testMemory", bin2hex(random_bytes(1024*64)));
 // trochilidae_set_tag("testMemory", generateRandomString(1024*1*1024));
 // trochilidae_set_tag("testMemory", generateRandomString(64*1024/32));
-trochilidae_set_tag("testMemory", str_repeat($company, 1024));
-trochilidae_set_tag("testMemoryBytes", random_bytes(1024*1024));
+// trochilidae_set_tag("testMemoryX", str_repeat("testRepeat", 1024*10));
+// trochilidae_set_tag("testMemoryBytes", random_bytes(1024*1024*2));
 trochilidae_set_tag("convertTest", 654);
 trochilidae_set_tag("ruTest", "Бу, испугался? не бойся.");
 
@@ -56,7 +56,7 @@ var_dump(trochilidae_timer_get_info());
 
 $hostname = bin2hex(random_bytes(256*1024));
 // echo "trochilidae_set_hostname('$hostname')", PHP_EOL;
-trochilidae_set_hostname('test');
-trochilidae_set_hostname($hostname);
+// trochilidae_set_hostname('test');
+// trochilidae_set_hostname($hostname);
 
 echo 'OK: ', memory_get_peak_usage(true) / 1024 / 1024 , 'Mb', PHP_EOL;

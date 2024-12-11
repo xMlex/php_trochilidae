@@ -95,6 +95,10 @@ void tr_array_write_string_size(struct tr_array *self, const char *string, const
 }
 
 void tr_array_write_string(struct tr_array *self, const char *string) {
+    if (string == NULL) {
+        tr_array_write_string_size(self, NULL, 0);
+        return;
+    }
     tr_array_write_string_size(self, string, strlen(string));
 }
 

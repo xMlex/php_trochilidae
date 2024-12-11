@@ -16,7 +16,7 @@
 #include <arpa/inet.h>
 #include "trochilidae/utils.h"
 
-#define PHP_TROCHILIDAE_SERVER_DEFAULT_PORT 30001
+#define PHP_TROCHILIDAE_SERVER_DEFAULT_PORT 30002
 
 #define PHP_TROCHILIDAE_REQUEST_METHOD_UNDEFINED 0xFF
 #define PHP_TROCHILIDAE_REQUEST_METHOD_NONE 0x00
@@ -48,6 +48,7 @@ typedef struct {
     byte request_method;
     char *request_uri;
     char *request_domain;
+    char *request_id;
 
     size_t req_count;
     struct timeval start_time;

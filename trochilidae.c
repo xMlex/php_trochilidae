@@ -45,7 +45,6 @@ PHP_FUNCTION(trochilidae_set_hostname) {
         Z_PARAM_STR(k)
     ZEND_PARSE_PARAMETERS_END();
 
-    printf("trochilidae_set_hostname, size: %lu\n", sizeof(TR_G(hostName)));
     strlcpy(TR_G(hostName), ZSTR_VAL(k), sizeof(TR_G(hostName)) - 1);
 }
 
@@ -206,8 +205,6 @@ static int send_data() {
         modeType = PHP_TROCHILIDAE_MODE_CLI;
     }
 
-    struct timeval requestTV = {};
-
     char *request_domain;
     if (TR_G(requestData).request_domain) {
         request_domain = TR_G(requestData).request_domain;
@@ -236,6 +233,7 @@ static int send_data() {
     tr_array_write_string(&TR_G(msg), TR_G(hostName));
     tr_array_write_string(&TR_G(msg), request_domain);
     tr_array_write_string(&TR_G(msg), request_uri);
+    tr_array_write_string(&TR_G(msg), TR_G(requestData).request_id);
 
     //argv
     uint32_t argvCount = 0;
@@ -388,6 +386,7 @@ static void collect_metrics_before_request() {
             TR_G(requestData).request_domain = tr_fetch_global_var("SERVER_NAME");
         }
     }
+    TR_G(requestData).request_id = tr_fetch_global_var("HTTP_X_REQUEST_ID");
 }
 
 static void collect_metrics_after_request() {
