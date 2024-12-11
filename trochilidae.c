@@ -193,8 +193,6 @@ static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
     return SUCCESS;
 }
 
-
-
 static int send_data() {
     collect_metrics_after_request();
 
