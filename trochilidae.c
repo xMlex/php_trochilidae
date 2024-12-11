@@ -58,16 +58,23 @@ PHP_FUNCTION(trochilidae_timer_start) {
 }
 
 TrTimer *get_or_create_tr_timer(zend_string *timerName) {
-    const zval *val = NULL;
-
-    if ((val = zend_hash_find(Z_ARR_P(&TR_G(timers)), timerName)) != NULL) {
+    zval *val = zend_hash_find(Z_ARRVAL_P(&TR_G(timers)), timerName);
+    if (val != NULL) {
         return (TrTimer *) Z_RES_VAL_P(val);
     }
 
-    TrTimer *timer = tr_timer_new(timerName->val);
-    timer->resource = zend_register_resource(timer, res_tr_timer);
-    add_assoc_resource(&TR_G(timers), timerName->val, timer->resource);
+    TrTimer *timer = tr_timer_new(ZSTR_VAL(timerName));
+    if (timer == NULL) {
+        return NULL;
+    }
 
+    zend_resource *resource = zend_register_resource(timer, res_tr_timer);
+    if (resource == NULL) {
+        tr_timer_free(timer);
+        return NULL;
+    }
+    timer->resource = resource;
+    add_assoc_resource(&TR_G(timers), ZSTR_VAL(timerName), resource);
     return timer;
 }
 
@@ -165,10 +172,6 @@ static PHP_MINIT_FUNCTION(trochilidae) {
     sapi_module.ub_write = sapi_ub_write_counter;
 
     res_tr_timer = zend_register_list_destructors_ex(res_tr_timer_dtor, NULL, "res_trochilidae_timer", module_number);
-
-    array_init(&TR_G(tags));
-    array_init(&TR_G(timers));
-
     return SUCCESS;
 }
 
@@ -181,6 +184,8 @@ static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
 
 static PHP_RINIT_FUNCTION(trochilidae) {
     collect_metrics_before_request();
+    array_init(&TR_G(tags));
+    array_init(&TR_G(timers));
     return SUCCESS;
 }
 
@@ -188,8 +193,8 @@ static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
     if (TR_G(enabled) != false) {
         send_data();
     }
-    zend_hash_clean(Z_ARRVAL_P(&TR_G(tags)));
-    zend_hash_clean(Z_ARRVAL_P(&TR_G(timers)));
+    zval_ptr_dtor(&TR_G(tags));
+    zval_ptr_dtor(&TR_G(timers));
     return SUCCESS;
 }
 
