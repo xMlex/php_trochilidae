@@ -8,7 +8,6 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <zconf.h>
 #include <sys/time.h>
 
 #define PHP_TROCHILIDAE_COLLECTORS_MAX 10
