@@ -125,7 +125,8 @@ ADD . /app
 # php /app/test.php && \
 RUN phpize && ./configure --enable-trochilidae && make clean && make install && docker-php-ext-enable trochilidae && \
     php -m && \
-    composer install --prefer-dist && \
+    php -r "echo 'Test TR at ',date('c'), PHP_EOL;" && \
     echo "OK  -exit" && \
+    composer install --prefer-dist && \
     exit 1
 
