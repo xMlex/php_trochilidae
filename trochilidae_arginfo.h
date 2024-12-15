@@ -9,9 +9,11 @@ static void collect_metrics_before_request();
 
 static void collect_metrics_after_request();
 
-static inline char *tr_fetch_global_var(char *name);
+static inline char *tr_fetch_global_var(const char *name);
 
-static inline zval *tr_fetch_global_var_ar(char *name);
+static inline zval *tr_fetch_global_var_ar(const char *name);
+static inline struct timeval tr_fetch_global_var_tv(const char *name);
+static inline zval *tr_fetch_global_var_zval(const char *name);
 
 static size_t sapi_ub_write_counter(const char *str, size_t length);
 

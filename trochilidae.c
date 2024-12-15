@@ -221,7 +221,7 @@ static int send_data() {
     }
 
     tr_array_init(&TR_G(msg), 0);
-    tr_array_write_tv(&TR_G(msg), &TR_G(requestData).start_time);
+    tr_array_write_tv(&TR_G(msg), &TR_G(requestData).request_start_time);
     tr_array_write_byte(&TR_G(msg), &modeType);
     tr_array_write_byte(&TR_G(msg), &TR_G(requestData).request_method);
     tr_array_write_long(&TR_G(msg), &TR_G(requestData).mem_peak_usage);
@@ -239,15 +239,19 @@ static int send_data() {
     //argv
     uint32_t argvCount = 0;
     const zval *argvList = tr_fetch_global_var_ar(strdup("argv"));
-    argvCount = zend_array_count(Z_ARR_P(argvList));
-    tr_array_write_short(&TR_G(msg), &argvCount); // count
-    if (argvCount > 0) {
-        zend_string *key;
-        zval *val;
-        // Итерация по аргументам
-        ZEND_HASH_FOREACH_VAL(Z_ARR_P(argvList), val) {
-            tr_array_write_string(&TR_G(msg), Z_STRVAL_P(val));
-        } ZEND_HASH_FOREACH_END();
+    if (argvList) {
+        argvCount = zend_array_count(Z_ARR_P(argvList));
+        tr_array_write_short(&TR_G(msg), &argvCount); // count
+        if (argvCount > 0) {
+            zend_string *key;
+            zval *val;
+            // Итерация по аргументам
+            ZEND_HASH_FOREACH_VAL(Z_ARR_P(argvList), val) {
+                tr_array_write_string(&TR_G(msg), Z_STRVAL_P(val));
+            } ZEND_HASH_FOREACH_END();
+        }
+    } else {
+        tr_array_write_short(&TR_G(msg), &argvCount); // count
     }
 
     //tags
@@ -359,7 +363,6 @@ static void collect_metrics_before_request() {
     TR_G(requestCount)++;
     struct rusage u;
     gettimeofday(&TR_G(requestData).executionTime, NULL);
-    gettimeofday(&TR_G(requestData).start_time, NULL);
     getrusage(RUSAGE_SELF, &u);
     tv_assign(&TR_G(requestData).CPUUsageUserTime, &u.ru_utime);
     tv_assign(&TR_G(requestData).CPUUsageSystemTime, &u.ru_stime);
@@ -377,6 +380,7 @@ static void collect_metrics_before_request() {
             TR_G(requestData).request_domain = tr_fetch_global_var("SERVER_NAME");
         }
     }
+    TR_G(requestData).request_start_time = tr_fetch_global_var_tv("REQUEST_TIME_FLOAT");
     TR_G(requestData).request_id = tr_fetch_global_var("HTTP_X_REQUEST_ID");
 }
 
@@ -398,30 +402,53 @@ static size_t sapi_ub_write_counter(const char *str, size_t length) {
     return sapi_old_ub_write(str, length);
 }
 
-static inline char *tr_fetch_global_var(char *name) {
-    zval *tmp;
-    if ((Z_TYPE(PG(http_globals)[TRACK_VARS_SERVER]) == IS_ARRAY || zend_is_auto_global_str(ZEND_STRL("_SERVER")))) {
-        zend_string *findName = zend_string_init(name, strlen(name), 0);
-        tmp = zend_hash_str_find(Z_ARRVAL(PG(http_globals)[TRACK_VARS_SERVER]), ZSTR_VAL(findName), ZSTR_LEN(findName));
-        zend_string_release(findName);
-        if (tmp) {
-            return Z_STRVAL_P(tmp);
-        }
+static inline char *tr_fetch_global_var(const char *name) {
+    zval *tmp = tr_fetch_global_var_zval(name);
+    if (tmp) {
+        return Z_STRVAL_P(tmp);
     }
     return NULL;
 }
 
-static inline zval *tr_fetch_global_var_ar(char *name) {
-    zval *tmp;
+static inline zval *tr_fetch_global_var_ar(const char *name) {
+    zval *tmp = tr_fetch_global_var_zval(name);
+    if (Z_TYPE_P(tmp) != IS_ARRAY) {
+        return NULL;
+    }
+    if (zend_array_count(Z_ARR_P(tmp)) <= 0) {
+        return NULL;
+    }
+    return tmp;
+}
+
+static inline struct timeval tr_fetch_global_var_tv(const char *name) {
+    struct timeval tv = {0, 0}; // Инициализация timeval
+
+    // Получить zval из $_SERVER
+    const zval *zv = tr_fetch_global_var_zval(name);
+    if (zv && Z_TYPE_P(zv) == IS_DOUBLE) {
+        double time_float = Z_DVAL_P(zv);
+        tv.tv_sec = (time_t) time_float;
+        tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6 * 1000);
+    } else if (zv && Z_TYPE_P(zv) == IS_STRING) {
+        char *endptr;
+        double time_float = strtod(Z_STRVAL_P(zv), &endptr);
+        if (*endptr == '\0') {
+            tv.tv_sec = (time_t) time_float;
+            tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6 * 1000);
+        } else {
+            fprintf(stderr, "[tr] incorrect string val in _SERVER[%s] variable\n", name);
+        }
+    }
+    return tv;
+}
+
+static inline zval *tr_fetch_global_var_zval(const char *name) {
     if ((Z_TYPE(PG(http_globals)[TRACK_VARS_SERVER]) == IS_ARRAY || zend_is_auto_global_str(ZEND_STRL("_SERVER")))) {
         zend_string *findName = zend_string_init(name, strlen(name), 0);
-        tmp = zend_hash_str_find(Z_ARRVAL(PG(http_globals)[TRACK_VARS_SERVER]), ZSTR_VAL(findName), ZSTR_LEN(findName));
+        zval *result = zend_hash_find(Z_ARRVAL(PG(http_globals)[TRACK_VARS_SERVER]), findName);
         zend_string_release(findName);
-        if (Z_TYPE_P(tmp) == IS_ARRAY && zend_array_count(Z_ARR_P(tmp)) > 0) {
-            return tmp;
-        } else if (Z_TYPE_P(tmp) != IS_NULL) {
-            return tmp;
-        }
+        return result;
     }
     return NULL;
 }

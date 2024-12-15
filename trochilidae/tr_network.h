@@ -51,7 +51,7 @@ typedef struct {
     char *request_id;
 
     size_t req_count;
-    struct timeval start_time;
+    struct timeval request_start_time;
     struct timeval executionTime;
     struct timeval CPUUsageUserTime;
     struct timeval CPUUsageSystemTime;
