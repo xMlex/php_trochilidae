@@ -23,6 +23,7 @@ extern void tr_timer_start(TrTimer* s) {
     s->startCount++;
     gettimeofday( &s->executionTime, NULL);
 }
+
 extern void tr_timer_stop(TrTimer* s) {
     if (s->startCount <= s->stopCount) {
         return;
@@ -34,27 +35,11 @@ extern void tr_timer_stop(TrTimer* s) {
     timeradd(&s->totalExecutionTime, &s->executionTime, &s->totalExecutionTime);
 }
 
-extern void tr_timer_del(TrTimer* s) {
+extern void tr_timer_free(TrTimer* s) {
     efree(s->name);
     efree(s);
 }
 
 extern void res_tr_timer_dtor(zend_resource *rsrc) {
-    tr_timer_del((TrTimer *)rsrc->ptr);
+    tr_timer_free((TrTimer *)rsrc->ptr);
 }
-
-//zval* zval_from_tr_timer(TrTimer * s) {
-//    zval* zv = (zval*)emalloc(sizeof(zval));
-//    ZVAL_OBJ(zv, s, my_struct_ce); // Инициализация zval как объекта структуры
-//    return zv;
-//}
-
-// Функция для преобразования zval в структуру
-//TrTimer * zval_to_tr_timer(zval* zv) {
-//    if (Z_TYPE_P(zv) != IS_OBJECT) {
-//        return NULL; // zval не является экземпляром структуры my_struct
-//    }
-//
-//    TrTimer * s = Z_TR_TIMER_P(zv);
-//    return s;
-//}

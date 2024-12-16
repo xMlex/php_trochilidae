@@ -1,4 +1,5 @@
 *
+!lz4
 !.gitignore
 !trochilidae.c
 !php_trochilidae.h
@@ -15,3 +16,4 @@
 !test.php
 !/trochilidae
 !package.xml
+!Dockerfile

@@ -20,7 +20,7 @@ typedef struct {
 } TrTimer;
 
 extern TrTimer* tr_timer_new(const char* name);
-extern void tr_timer_del(TrTimer* s);
+extern void tr_timer_free(TrTimer* s);
 extern void res_tr_timer_dtor(zend_resource *rsrc);
 extern void tr_timer_start(TrTimer* s);
 extern void tr_timer_stop(TrTimer* s);

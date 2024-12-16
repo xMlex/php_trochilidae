@@ -36,8 +36,7 @@ struct in_addr find_ip_address(const char *domain) {
     }
 
     // If not found in cache, perform DNS lookup
-    struct hostent *host_entry;
-    host_entry = gethostbyname(domain);
+    struct hostent *host_entry = gethostbyname(domain);
     if (host_entry == NULL || host_entry->h_addr_list[0] == NULL) {
         ip.s_addr = INADDR_NONE;
     } else {
@@ -155,6 +154,8 @@ extern bool tr_client_create(TrClient *client) {
     }
     client->initialized = true;
     client->initAt = time(NULL);
+    client->chunk_size = MAX_CHUNK_SIZE;
+    client->chunk_count = MAX_CHUNKS;
     return true;
 }
 
@@ -186,7 +187,7 @@ int tr_client_set_addr_info(TrClient *client) {
 }
 
 extern bool tr_client_refresh_server(TrClient *client) {
-    time_t t = time(NULL);
+    const time_t t = time(NULL);
     if (client->sock_address_refresh_at > (t + domain_resolve_cache_timeout)) {
         return true;
     }
@@ -207,53 +208,77 @@ extern bool tr_client_refresh_server(TrClient *client) {
     return true;
 }
 
-size_t tr_client_send(TrClient *client, const void *buf, size_t size) {
+ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const bool compressed) {
+    if (!client || !data || size == 0) {
+        fprintf(stderr, "[tr-send_chunks] Invalid input parameters\n");
+        return -1;
+    }
+
+    const size_t chunk_size = client->chunk_size - CHUNK_HEADER_SIZE;
+    if (chunk_size <= 0) {
+        fprintf(stderr, "[tr-send_chunks] chunk_size small, need > %d\n", CHUNK_HEADER_SIZE);
+        return -1;
+    }
+    if (client->chunk_size > MAX_CHUNK_SIZE) {
+        fprintf(stderr, "[tr-send_chunks]  Chunk size too large(%lu), max: %d\n", chunk_size, MAX_CHUNK_SIZE);
+        return -1;
+    }
+
+    const unsigned short total_chunks = (size + chunk_size - 1) / chunk_size;
+
+    if (total_chunks > client->chunk_count) {
+        fprintf(stderr, "[tr-send_chunks] Data too large to send in %d chunks\n", MAX_CHUNKS);
+        return -1;
+    }
+
+    const unsigned long packetId = generate_random_ulong();
+    //fprintf(stderr, "[tr-send_chunks] packetId %llu, chunks: %d\n", packetId, total_chunks);
+
+    if (setsockopt(client->socketFd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) < 0) {
+        perror("[tr-send_chunks] setsockopt SO_SNDBUF failed");
+    }
+
+    ssize_t totalSentSize = 0;
+    unsigned short i = 0;
+    for (i = 0; i < total_chunks; ++i) {
+        const size_t offset = i * chunk_size;
+        const size_t current_chunk_size = (offset + chunk_size > size) ? (size - offset) : chunk_size;
+
+        // Формат: [идентификатор (8 байт)][номер чанка (2 байта)][всего чанков (2 байта)][сжато да/нет (1 байт)][ключ 8 байт]
+        unsigned char chunk_header[CHUNK_HEADER_SIZE];
+        memcpy(chunk_header, &packetId, 8);
+        memcpy(chunk_header + 8, &i, 2);
+        memcpy(chunk_header + 10, &total_chunks, 2);
+        memcpy(chunk_header + 12, &compressed, 1);
+        memset(chunk_header + 13, 0, 8); // key
+
+        // Формируем полный пакет
+        char packet[MAX_CHUNK_SIZE];
+        memcpy(packet, chunk_header, CHUNK_HEADER_SIZE);
+        memcpy(packet + CHUNK_HEADER_SIZE, data + offset, current_chunk_size);
+
+        // Отправляем пакет
+        const ssize_t sent = sendto(client->socketFd, packet, current_chunk_size + CHUNK_HEADER_SIZE, 0,
+                              (const struct sockaddr *)&client->sock_address_in, sizeof(client->sock_address_in));
+        totalSentSize += sent;
+        //fprintf(stderr, "[tr-send_chunks] process packetId %llu, chunk: %d, sent: %lu\n", packetId, i, sent);
+        if (sent < 0) {
+            perror("[tr-send_chunks] sendto error");
+            return -1;
+        }
+    }
+    //fprintf(stderr, "[tr-send_chunks] Total packetId %llu, chunk: %d, sent: %lu\n", packetId, i, totalSentSize);
+    return totalSentSize;
+}
+
+
+ssize_t tr_client_send(TrClient *client, void *buf, const size_t size) {
     if (!client->initialized) {
         return -1;
     }
     if (!tr_client_refresh_server(client)) {
         return -1;
     }
-    return sendto(client->socketFd, buf, size, MSG_CONFIRM, (const struct sockaddr *) &client->sock_address_in,
-                  sizeof(client->sock_address_in));
-}
-
-
-void tr_client_w_str(char *buf, size_t *pos, char *str) {
-    if (str == NULL) {
-        buf[*pos] = 0x00;
-        *pos += 1;
-        return;
-    }
-
-    size_t len = strlen(str);
-    memcpy(&buf[*pos], str, len);
-    *pos += len;
-    buf[*pos] = 0x00;
-    *pos += 1;
-}
-
-void tr_client_w_h(char *buf, size_t *pos, void *c) {
-    memcpy(&buf[*pos], c, 2);
-    *pos += 2;
-}
-
-void tr_client_w_c(char *buf, size_t *pos, void *c) {
-    memcpy(&buf[*pos], c, 1);
-    *pos += 1;
-}
-
-void tr_client_w_d(char *buf, size_t *pos, void *c) {
-    memcpy(&buf[*pos], c, 4);
-    *pos += 4;
-}
-
-void tr_client_w_tv(char *buf, size_t *pos, struct timeval *tv) {
-    tr_client_w_d(buf, pos, &tv->tv_sec);
-    tr_client_w_d(buf, pos, &tv->tv_usec);
-}
-
-void tr_client_w_q(char *buf, size_t *pos, void *c) {
-    memcpy(&buf[*pos], c, 8);
-    *pos += 8;
+    const ssize_t result = send_chunks(client, buf, size, false);
+    return result;
 }

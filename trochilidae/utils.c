@@ -19,3 +19,14 @@ int str_to_int_with_default(const char *str, int default_value) {
     }
     return (int)result;
 }
+
+unsigned long generate_random_ulong() {
+#ifdef HAVE_ARC4RANDOM
+    //fprintf(stderr, "generate_random_ulong used: arc4random\n");
+    return ((unsigned long)arc4random() << 32) | arc4random();
+#else
+    //fprintf(stderr, "generate_random_ulong used: rand + time\n");
+    return ((unsigned long)time(NULL) << 32) | rand();
+#endif
+
+}
