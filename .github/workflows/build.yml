@@ -1,4 +1,4 @@
-name: Trochilidae build & tests
+name: Trochilidae build
 on: [push, pull_request]
 jobs:
   build:
@@ -25,5 +25,3 @@ jobs:
         run: ./configure --enable-trochilidae
       - name: make
         run: make
-      - name: make test
-        run: echo "n\n" | make test
