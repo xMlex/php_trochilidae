@@ -19,6 +19,10 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-versions }}
+      - name: phpize
+        run: phpize
+      - name: configure
+        run: ./configure --enable-trochilidae
       - name: make
         run: make
       - name: make test
