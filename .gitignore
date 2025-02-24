@@ -1,6 +1,8 @@
 *
 !lz4
 !.gitignore
+!/tests
+!/tests/*.phpt
 !trochilidae.c
 !php_trochilidae.h
 !tr_network.c
