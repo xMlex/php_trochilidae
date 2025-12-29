@@ -412,6 +412,9 @@ static inline char *tr_fetch_global_var(const char *name) {
 
 static inline zval *tr_fetch_global_var_ar(const char *name) {
     zval *tmp = tr_fetch_global_var_zval(name);
+    if (!tmp) {
+        return NULL;
+    }
     if (Z_TYPE_P(tmp) != IS_ARRAY) {
         return NULL;
     }
