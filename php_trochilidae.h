@@ -22,6 +22,7 @@
 
 ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
     bool enabled;
+    bool flashed;
     bool modeCli;
     char *server_list;
     char hostName[HOST_NAME_MAX];
