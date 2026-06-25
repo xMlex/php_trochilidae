@@ -117,6 +117,16 @@ PHP_FUNCTION(trochilidae_timer_stop) {
     RETURN_TRUE;
 }
 
+PHP_FUNCTION(trochilidae_flush) {
+    tr_flush();
+    RETURN_TRUE;
+}
+
+PHP_FUNCTION(trochilidae_reset) {
+    tr_reset();
+    RETURN_TRUE;
+}
+
 static PHP_FUNCTION(trochilidae_timer_get_info) {
     array_init(return_value);
     zend_ulong idx;
@@ -143,6 +153,8 @@ static const zend_function_entry functions[] = {
     PHP_FE(trochilidae_set_hostname, arginfo_trochilidae_set_hostname)
     PHP_FE(trochilidae_timer_start, arginfo_trochilidae_timer_start)
     PHP_FE(trochilidae_timer_stop, arginfo_trochilidae_timer_stop)
+    PHP_FE(trochilidae_flush, arginfo_trochilidae_flush)
+    PHP_FE(trochilidae_reset, arginfo_trochilidae_reset)
     PHP_FE(trochilidae_timer_get_info, arginfo_trochilidae_get_info)
     PHP_FE_END
 };
@@ -183,18 +195,32 @@ static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
 }
 
 static PHP_RINIT_FUNCTION(trochilidae) {
+    tr_reset();
+    return SUCCESS;
+}
+
+static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
+     tr_flush();
+    return SUCCESS;
+}
+
+static int tr_reset() {
+    TR_G(flashed) = false;
     collect_metrics_before_request();
+    zval_dtor(&TR_G(tags));
+    zval_dtor(&TR_G(timers));
     array_init(&TR_G(tags));
     array_init(&TR_G(timers));
     return SUCCESS;
 }
 
-static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
-    if (TR_G(enabled) != false) {
-        send_data();
+static int tr_flush() {
+    if (TR_G(enabled) == false || TR_G(flashed) == true) {
+        return SUCCESS;
     }
-    zval_ptr_dtor(&TR_G(tags));
-    zval_ptr_dtor(&TR_G(timers));
+
+    TR_G(flashed) = true;
+    send_data();
     return SUCCESS;
 }
 

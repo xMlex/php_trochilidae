@@ -25,6 +25,8 @@ static void tr_client_w_argvs(size_t *pos);
 
 static int tr_client_init_or_error(TrClient *client);
 
+static int tr_flush();
+static int tr_reset();
 static int send_data();
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_trochilidae_set_tag, 0, 0, 2)
@@ -42,6 +44,12 @@ ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_trochilidae_timer_stop, 0, 0, 0)
     ZEND_ARG_TYPE_INFO(0, key, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_trochilidae_reset, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_trochilidae_flush, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_trochilidae_get_info, 0, 0, 0)
