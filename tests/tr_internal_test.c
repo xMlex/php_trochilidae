@@ -331,6 +331,56 @@ static void test_arr_mixed_writes() {
     PASS();
 }
 
+static void test_arr_size_after_setpos_and_overwrite() {
+    TEST("size after set_position + overwrite (shrink)");
+    struct tr_array a;
+    tr_array_init(&a, 64);
+    tr_array_write_data(&a, "abcdefghij", 10);
+    CHECK(a.size == 10, "initial size");
+    tr_array_set_position(&a, 0);
+    tr_array_write_data(&a, "xyz", 3);
+    CHECK(a.position == 3, "position after write");
+    CHECK(a.size == 10, "size should remain 10 (overwrite, not append)");
+    CHECK(memcmp(a.data, "xyzdefghij", 10) == 0, "data mismatch after overwrite");
+    tr_array_free(&a);
+    PASS();
+}
+
+static void test_arr_size_after_setpos_forward() {
+    TEST("size after set_position forward + write");
+    struct tr_array a;
+    tr_array_init(&a, 64);
+    tr_array_write_data(&a, "hello", 5);
+    CHECK(a.size == 5, "initial size");
+    CHECK(a.position == 5, "initial position");
+    tr_array_set_position(&a, 100);
+    tr_array_write_data(&a, "abc", 3);
+    CHECK(a.position == 103, "position after write");
+    CHECK(a.size == 103, "size should be 103 (position is new end)");
+    CHECK(memcmp(a.data + 100, "abc", 3) == 0, "data at offset 100");
+    tr_array_free(&a);
+    PASS();
+}
+
+static void test_arr_size_with_inline_writes_after_setpos() {
+    TEST("size with inline helpers after set_position");
+    struct tr_array a;
+    tr_array_init(&a, 64);
+    tr_array_write_byte(&a, (byte[]){0xAA});
+    tr_array_write_word(&a, (uint32_t[]){0x12345678});
+    CHECK(a.size == 5, "size after 1+4 bytes");
+    tr_array_set_position(&a, 0);
+    tr_array_write_short(&a, (short[]){0xBEEF});
+    CHECK(a.position == 2, "position after set+short");
+    CHECK(a.size == 5, "size stays 5 (overwrite, not append)");
+    tr_array_set_position(&a, 50);
+    tr_array_write_long(&a, (uint64_t[]){0xDEADBEEFCAFEULL});
+    CHECK(a.position == 58, "position after set+long");
+    CHECK(a.size == 58, "size = 58 (new end past old size)");
+    tr_array_free(&a);
+    PASS();
+}
+
 /* ----------------------------------------------------------- */
 /*  tr_timer tests                                              */
 /* ----------------------------------------------------------- */
@@ -517,6 +567,9 @@ int main() {
     test_arr_consecutive_writes_trigger_multiple_growth();
     test_arr_free_resets();
     test_arr_mixed_writes();
+    test_arr_size_after_setpos_and_overwrite();
+    test_arr_size_after_setpos_forward();
+    test_arr_size_with_inline_writes_after_setpos();
 
     puts("\n=== tr_timer tests ===");
     test_tmr_new();
