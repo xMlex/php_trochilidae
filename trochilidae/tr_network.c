@@ -251,7 +251,7 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         return -1;
     }
 
-    const unsigned long packetId = generate_random_ulong();
+    const uint64_t packetId = generate_random_ulong();
     //fprintf(stderr, "[tr-send_chunks] packetId %llu, chunks: %d\n", packetId, total_chunks);
 
     if (setsockopt(client->socketFd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) < 0) {

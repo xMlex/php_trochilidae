@@ -3,6 +3,7 @@
 //
 
 #include "trochilidae/utils.h"
+#include <inttypes.h>
 
 extern void d2tv(double x, struct timeval *tv) {
     tv->tv_sec = (long) x;
@@ -20,13 +21,16 @@ int str_to_int_with_default(const char *str, int default_value) {
     return (int)result;
 }
 
-unsigned long generate_random_ulong() {
-#ifdef HAVE_ARC4RANDOM
-    //fprintf(stderr, "generate_random_ulong used: arc4random\n");
-    return ((unsigned long)arc4random() << 32) | arc4random();
-#else
-    //fprintf(stderr, "generate_random_ulong used: rand + time\n");
-    return ((unsigned long)time(NULL) << 32) | rand();
-#endif
+static bool prng_seeded = false;
 
+uint64_t generate_random_ulong() {
+#ifdef HAVE_ARC4RANDOM
+    return ((uint64_t)arc4random() << 32) | arc4random();
+#else
+    if (!prng_seeded) {
+        srand((unsigned int)(time(NULL) ^ getpid()));
+        prng_seeded = true;
+    }
+    return ((uint64_t)time(NULL) << 32) | (unsigned long)rand();
+#endif
 }

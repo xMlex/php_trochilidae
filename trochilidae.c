@@ -426,7 +426,7 @@ static void collect_metrics_before_request() {
     // request_id: для CLI генерируем, для HTTP берём из заголовка
     if (TR_G(modeCli)) {
         char buf[33];
-        snprintf(buf, sizeof(buf), "%016lx%016lx", generate_random_ulong(), generate_random_ulong());
+        snprintf(buf, sizeof(buf), "%016" PRIx64 "%016" PRIx64, generate_random_ulong(), generate_random_ulong());
         TR_G(requestData).request_id = estrdup(buf);
     } else {
         char *header_id = tr_fetch_global_var("HTTP_X_REQUEST_ID");
