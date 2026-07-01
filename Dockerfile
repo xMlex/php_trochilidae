@@ -122,11 +122,11 @@ RUN apk add --no-cache unzip git && \
 # trochilidae
 RUN apk add --no-cache build-base autoconf unzip git curl
 ADD . /app
-# php /app/test.php && \
-RUN phpize && ./configure --enable-trochilidae && make clean && make install && docker-php-ext-enable trochilidae && \
-    php -m && \
-    php -r "echo 'Test TR at ',date('c'), PHP_EOL;" && \
-    echo "OK - exit" && \
-    composer install --prefer-dist && \
-    exit 1
+RUN phpize && \
+    ./configure --enable-trochilidae && \
+    make -j$(nproc) && \
+    make install && \
+    docker-php-ext-enable trochilidae && \
+    php -m | grep trochilidae && \
+    tests/install_test.sh
 

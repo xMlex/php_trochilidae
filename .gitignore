@@ -21,3 +21,4 @@
 !Dockerfile
 !.opencode
 !/tests/stubs/php.h
+!/tests/install_test.sh

@@ -1,4 +1,5 @@
 *
 !*.phpt
 !*.c
+!*.sh
 !stubs
