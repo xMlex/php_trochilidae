@@ -20,5 +20,7 @@
 !package.xml
 !Dockerfile
 !.opencode
+!/docs
+
 !/tests/stubs/php.h
 !/tests/install_test.sh

@@ -9,6 +9,7 @@ This project is a C-based PHP extension for metrics collection.
     - `tr_timer.c/h`: High-resolution timers and Zend resource management.
     - `tr_hooks.c`: Hooks for SAPI integration (intercepting output/execution).
     - `utils.c/h`: Helper functions and utility macros.
+- `docs/protocol.md`: Wire format specification for the UDP protocol.
 - `tests/`: Contains `.phpt` files for integration testing.
 
 ## Core Conventions
