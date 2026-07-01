@@ -38,7 +38,7 @@ struct tr_array {
 
 extern void tr_array_init(struct tr_array *self, size_t capacity);
 extern void tr_array_clear(struct tr_array *self);
-extern void tr_array_free(const struct tr_array *self);
+extern void tr_array_free(struct tr_array *self);
 extern size_t tr_array_get_position(const struct tr_array *self);
 extern void tr_array_set_position(struct tr_array *self, size_t position);
 extern size_t tr_array_get_size(const struct tr_array *self);
@@ -59,19 +59,34 @@ extern void tr_array_write_data_at_pos(struct tr_array *self, size_t pos, const 
  */
 extern void tr_array_write_string(struct tr_array *self, const char *string);
 extern void tr_array_write_string_size(struct tr_array *self, const char *string, const size_t string_size);
-extern void tr_array_write_byte(struct tr_array *self, const void *c);
-/**
- * @brief Write a short value(2 bytes) to the array
- */
-extern void tr_array_write_short(struct tr_array *self, const void *c);
-/**
- * @brief Write a word value (4 bytes) to the array
- */
-extern void tr_array_write_word(struct tr_array *self, const void *c);
-/**
- * @brief Write a long value (8 bytes) to the array
- */
-extern void tr_array_write_long(struct tr_array *self, const void *c);
 extern void tr_array_write_tv(struct tr_array *self, struct timeval *tv);
+
+static inline void tr_array_write_byte(struct tr_array *self, const void *c) {
+    tr_array_ensure_capacity(self, 1);
+    self->data[self->position] = *(const byte *)c;
+    self->position += 1;
+    self->size += 1;
+}
+
+static inline void tr_array_write_short(struct tr_array *self, const void *c) {
+    tr_array_ensure_capacity(self, 2);
+    memcpy(&self->data[self->position], c, 2);
+    self->position += 2;
+    self->size += 2;
+}
+
+static inline void tr_array_write_word(struct tr_array *self, const void *c) {
+    tr_array_ensure_capacity(self, 4);
+    memcpy(&self->data[self->position], c, 4);
+    self->position += 4;
+    self->size += 4;
+}
+
+static inline void tr_array_write_long(struct tr_array *self, const void *c) {
+    tr_array_ensure_capacity(self, 8);
+    memcpy(&self->data[self->position], c, 8);
+    self->position += 8;
+    self->size += 8;
+}
 
 #endif //TR_ARRAY_H

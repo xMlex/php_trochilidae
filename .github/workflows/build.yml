@@ -25,5 +25,13 @@ jobs:
         run: ./configure --enable-trochilidae
       - name: make
         run: make
-      - name: run test.php
-        run: php -d extension=`pwd`/modules/trochilidae.so -f test.php
+      - name: make test
+        run: make test
+      - name: Compile unit tests
+        run: gcc -I/usr/include/php -I/usr/include/php/main -I/usr/include/php/Zend -I/usr/include/php/TSRM -I/usr/include/php/ext -I. -DHAVE_CONFIG_H -D_GNU_SOURCE -g -O0 tests/unit_test.c trochilidae/tr_network.c trochilidae/utils.c -o tests/unit_test
+      - name: Run unit tests
+        run: ./tests/unit_test
+      - name: Compile internal unit tests (tr_array, tr_timer)
+        run: gcc -I. -Itests/stubs -DHAVE_CONFIG_H -g -O0 -Wall tests/tr_internal_test.c -o tests/tr_internal_test -lm
+      - name: Run internal unit tests
+        run: ./tests/tr_internal_test

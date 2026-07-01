@@ -65,15 +65,17 @@ struct in_addr find_ip_address(const char *domain) {
  * @return
  */
 extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPairs) {
-    DomainPortEntry* pairs = (DomainPortEntry*)malloc(strlen(input) * sizeof(DomainPortEntry));
+    char *input_dup = strdup(input);
+    DomainPortEntry* pairs = (DomainPortEntry*)malloc(strlen(input_dup) * sizeof(DomainPortEntry));
     if (pairs == NULL) {
         fprintf(stderr,"parse_domain_port_pairs: malloc error\n");
+        free(input_dup);
         return pairs;
     }
 
     *numPairs = 0;
     const char delimiter[] = ",";
-    char* token = strtok((char*)input, delimiter);
+    char* token = strtok(input_dup, delimiter);
 
     while (token != NULL) {
         char domain[MAX_DOMAIN_LENGTH];
@@ -95,6 +97,7 @@ extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPair
         token = strtok(NULL, delimiter);
     }
     //printf("parse_domain_port_pairs: %d\n", (*numPairs));
+    free(input_dup);
     return pairs;
 }
 
