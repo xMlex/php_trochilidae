@@ -56,12 +56,12 @@ trochilidae_timer_start('db_query');
 // ... do work ...
 trochilidae_timer_stop('db_query');
 
-// Get timer stats
-$info = trochilidae_timer_get_info('db_query');
-// $info['execution_time'] – last lap in seconds
-// $info['total']          – total accumulated time
-// $info['start_count']
-// $info['stop_count']
+// Get stats for all timers
+$info = trochilidae_timer_get_info();
+// $info['timers'][0]['startCount']        – start count
+// $info['timers'][0]['stopCount']         – stop count
+// $info['timers'][0]['totalExecutionTime'] – total time in seconds
+// $info['timers'][0]['lastExecutionTime']  – last lap in seconds
 
 //[optional] Send collected metrics (send by default, after execute script/request)
 trochilidae_flush();
@@ -75,7 +75,7 @@ trochilidae_flush();
 | `trochilidae_set_hostname(string $hostname)` | Override the default hostname |
 | `trochilidae_timer_start(string $name)` | Start or resume a named timer |
 | `trochilidae_timer_stop(string $name)` | Stop a named timer (no-op if not running) |
-| `trochilidae_timer_get_info(string $name)` | Get timer statistics as array |
+| `trochilidae_timer_get_info()` | Get all timer statistics as nested array |
 | `trochilidae_flush()` | Send collected metrics to the collector |
 | `trochilidae_reset()` | Reset all collected metrics |
 

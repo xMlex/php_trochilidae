@@ -35,9 +35,10 @@ $PHP -d "extension=$SO_NAME" -r '
     trochilidae_set_hostname("install_test");
     trochilidae_timer_start("smoke");
     trochilidae_timer_stop("smoke");
-    $info = trochilidae_timer_get_info("smoke");
-    assert($info["start_count"] === 1);
-    assert($info["stop_count"] === 1);
+    $info = trochilidae_timer_get_info();
+    $t = $info["timers"][0];
+    assert($t["startCount"] === 1);
+    assert($t["stopCount"] === 1);
     echo "  set_tag       OK\n";
     echo "  set_hostname  OK\n";
     echo "  timer         OK\n";
