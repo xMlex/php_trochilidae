@@ -107,6 +107,11 @@ void update_server_list() {
             free(TR_G(collectors)[i].host);
             TR_G(collectors)[i].host = NULL;
         }
+        if (TR_G(chunk_size) < CHUNK_HEADER_SIZE + 1 || (unsigned long)TR_G(chunk_size) > MAX_CHUNK_SIZE) {
+            TR_G(collectors)[i].chunk_size = MAX_CHUNK_SIZE;
+        } else {
+            TR_G(collectors)[i].chunk_size = (size_t)TR_G(chunk_size);
+        }
     }
 
     free(pairs);
@@ -181,6 +186,8 @@ PHP_INI_BEGIN()
                       zend_trochilidae_globals, trochilidae_globals)
     STD_PHP_INI_BOOLEAN("trochilidae.debug", "0", PHP_INI_ALL, OnUpdateBool, debug,
                         zend_trochilidae_globals, trochilidae_globals)
+    STD_PHP_INI_ENTRY("trochilidae.chunk_size", "65507", PHP_INI_ALL, OnUpdateLong, chunk_size,
+                      zend_trochilidae_globals, trochilidae_globals)
 PHP_INI_END()
 
 static PHP_MINIT_FUNCTION(trochilidae) {
