@@ -20,3 +20,4 @@
 !package.xml
 !Dockerfile
 !.opencode
+!/tests/stubs/php.h
