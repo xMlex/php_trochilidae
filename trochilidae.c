@@ -403,6 +403,11 @@ static void collect_metrics_before_request() {
     tv_assign(&TR_G(requestData).CPUUsageUserTime, &u.ru_utime);
     tv_assign(&TR_G(requestData).CPUUsageSystemTime, &u.ru_stime);
 
+    if (TR_G(requestData).request_id) {
+        efree(TR_G(requestData).request_id);
+        TR_G(requestData).request_id = NULL;
+    }
+
     TR_G(requestData).response_http_size = 0;
     if (TR_G(modeCli)) {
         TR_G(requestData).request_method = PHP_TROCHILIDAE_REQUEST_METHOD_NONE;
@@ -417,7 +422,16 @@ static void collect_metrics_before_request() {
         }
     }
     TR_G(requestData).request_start_time = tr_fetch_global_var_tv("REQUEST_TIME_FLOAT");
-    TR_G(requestData).request_id = tr_fetch_global_var("HTTP_X_REQUEST_ID");
+
+    // request_id: для CLI генерируем, для HTTP берём из заголовка
+    if (TR_G(modeCli)) {
+        char buf[33];
+        snprintf(buf, sizeof(buf), "%016lx%016lx", generate_random_ulong(), generate_random_ulong());
+        TR_G(requestData).request_id = estrdup(buf);
+    } else {
+        char *header_id = tr_fetch_global_var("HTTP_X_REQUEST_ID");
+        TR_G(requestData).request_id = header_id ? estrdup(header_id) : NULL;
+    }
 }
 
 static void collect_metrics_after_request() {
