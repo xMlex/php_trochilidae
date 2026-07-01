@@ -91,7 +91,7 @@ void tr_array_write_data(struct tr_array *self, const void *data, const size_t d
      tr_array_ensure_capacity(self, data_size);
      memcpy(&self->data[self->position], data, data_size);
      self->position += data_size;
-     self->size += data_size;
+     if (self->position > self->size) self->size = self->position;
  }
 
 void tr_array_write_string_size(struct tr_array *self, const char *string, const size_t string_size) {

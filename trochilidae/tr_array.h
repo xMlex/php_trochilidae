@@ -65,28 +65,28 @@ static inline void tr_array_write_byte(struct tr_array *self, const void *c) {
     tr_array_ensure_capacity(self, 1);
     self->data[self->position] = *(const byte *)c;
     self->position += 1;
-    self->size += 1;
+    if (self->position > self->size) self->size = self->position;
 }
 
 static inline void tr_array_write_short(struct tr_array *self, const void *c) {
     tr_array_ensure_capacity(self, 2);
     memcpy(&self->data[self->position], c, 2);
     self->position += 2;
-    self->size += 2;
+    if (self->position > self->size) self->size = self->position;
 }
 
 static inline void tr_array_write_word(struct tr_array *self, const void *c) {
     tr_array_ensure_capacity(self, 4);
     memcpy(&self->data[self->position], c, 4);
     self->position += 4;
-    self->size += 4;
+    if (self->position > self->size) self->size = self->position;
 }
 
 static inline void tr_array_write_long(struct tr_array *self, const void *c) {
     tr_array_ensure_capacity(self, 8);
     memcpy(&self->data[self->position], c, 8);
     self->position += 8;
-    self->size += 8;
+    if (self->position > self->size) self->size = self->position;
 }
 
 #endif //TR_ARRAY_H
