@@ -79,18 +79,33 @@ trochilidae_flush();
 | `trochilidae_flush()` | Send collected metrics to the collector |
 | `trochilidae_reset()` | Reset all collected metrics |
 
-## Protocol TODO
+## TODO
 
-Planned improvements to the UDP wire format (`docs/protocol.md`):
+### 🟢 Protocol (`docs/protocol.md`)
 
 | # | Change | Why |
 |---|---|---|
-| 1 | **Magic + version** `uint32 + uint8` in chunk header | Distinguish from random UDP noise; enable backward-compatible evolution |
-| 2 | **tv_sec → 64-bit `long`** | Avoid Y2038 overflow (time_t is 64-bit on modern systems) |
-| 3 | **Payload length `uint32`** at start of payload | Self-validating parser; detect corruption/desync early |
-| 4 | **CRC32C or Adler-32** at end of payload | Detect bit errors invisible to UDP checksum |
-| 5 | **Monotonic sequence number** `uint32` in chunk header | Detect lost datagrams; order requests from a single agent |
-| 6 | **Chunk reassembly timeout** on collector | Upper bound for incomplete multi-chunk requests (GC) |
-| 7 | **Drop reserved padding** (8 zero bytes in chunk header) | Save bandwidth (8 bytes per chunk) |
-| 8 | **Implement `compressed` flag** | Payload compression for large requests (planned but unused)
+| P1 | **Magic + version** `uint32 + uint8` in chunk header | Distinguish from random UDP noise; enable backward-compatible evolution |
+| P2 | **tv_sec → 64-bit `long`** | Avoid Y2038 overflow (time_t is 64-bit on modern systems) |
+| P3 | **Payload length `uint32`** at start of payload | Self-validating parser; detect corruption/desync early |
+| P4 | **CRC32C or Adler-32** at end of payload | Detect bit errors invisible to UDP checksum |
+| P5 | **Monotonic sequence number** `uint32` in chunk header | Detect lost datagrams; order requests from a single agent |
+| P6 | **Drop reserved padding** (8 zero bytes in chunk header) | Save bandwidth (8 bytes per chunk) |
+
+### 🔴 Stability & Scalability (code)
+
+| # | Change | Where | Why |
+|---|---|---|---|
+| S1 | **Move `setsockopt SO_SNDBUF` to init, set to 256KB** | `tr_network.c:257` | Current: sets per-send to payload_size (~1.4KB). Under load → kernel buffer overflow → silent packet loss |
+| S2 | **Replace `gethostbyname` with `getaddrinfo`** | `tr_network.c:40` | `gethostbyname` is not thread-safe. PHP-FPM with 10+ workers → race condition on DNS, possible SIGSEGV |
+| S3 | **Non-blocking `sendto`** | `tr_network.c:281` | Blocking `sendto` stalls PHP worker when kernel buffer is full |
+| S4 | **Rate limiting / async queue** | `send_data` | Every request fires `sendto`. If collector lags, sender has no backpressure mechanism |
+| S5 | **`strncpy` in DNS cache + domain port parser** | `tr_network.c:47,54,107,110` | `strcpy` can overflow if input domain > 254 bytes |
+| S6 | **Fix DNS refresh guard** | `tr_network.c:211` | `sock_address_refresh_at > (t + timeout)` is always false → DNS re-lookup every request |
+| S7 | **`php_error_docref` instead of `fprintf(stderr)`** | `tr_network.c` | `fprintf(stderr)` bypasses PHP error log. At scale, errors become invisible |
+| S8 | **Use `client->chunk_count` in send limit check** | `tr_network.c:249` | Check uses `MAX_CHUNKS` instead of `client->chunk_count` |
+| S9 | **Heap-allocate chunk packet** | `tr_network.c:276` | `char packet[65507]` on stack — risk of overflow on constrained stacks |
+| S10 | **IPv6 support (`sockaddr_storage` + `getaddrinfo`)** | `tr_network.h:62` | Currently `sockaddr_in` = IPv4 only |
+| S11 | **Fix `totalSentSize += sent` counting header** | `tr_network.c:283` | Inflates byte metric by 21 bytes per chunk |
+| S12 | **Fix `tv_usec` calc: `1e6 * 1000` → `1e6`** | `trochilidae.c:502,508` | Double multiplication produces wrong microseconds |
 
