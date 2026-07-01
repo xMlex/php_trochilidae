@@ -10,7 +10,6 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <netdb.h>
-#include <zend.h>
 #include <time.h>
 #include <stdbool.h>
 #include <arpa/inet.h>
