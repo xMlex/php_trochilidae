@@ -14,6 +14,10 @@ void tr_array_init(struct tr_array *self, size_t capacity) {
         capacity = DEFAULT_CAPACITY;
     }
 
+    if (capacity > SIZE_MAX / sizeof(byte)) {
+        fprintf(stderr, "tr_array_init: capacity too large\n");
+        exit(EXIT_FAILURE);
+    }
     self->data = (byte *)emalloc(sizeof(byte) * capacity);
     CHECK_ALLOC(self->data);
     self->init_capacity = capacity;
@@ -50,15 +54,27 @@ void tr_array_free(struct tr_array *self) {
 void tr_array_ensure_capacity(struct tr_array *self, const size_t additional_size) {
     if (additional_size == 0) return;
 
+    if (self->position > SIZE_MAX - additional_size) {
+        fprintf(stderr, "tr_array_ensure_capacity: position + additional_size overflow\n");
+        exit(EXIT_FAILURE);
+    }
     const size_t required_capacity = self->position + additional_size;
-    if (required_capacity < self->capacity) {
+    if (required_capacity <= self->capacity) {
         return;
     }
     size_t new_capacity = self->capacity * 2;
     if (new_capacity < required_capacity) {
         new_capacity = required_capacity;
     }
+    if (new_capacity < self->capacity) {
+        fprintf(stderr, "tr_array_ensure_capacity: new_capacity overflow\n");
+        exit(EXIT_FAILURE);
+    }
 
+    if (new_capacity > SIZE_MAX / sizeof(byte)) {
+        fprintf(stderr, "tr_array_ensure_capacity: allocation size overflow\n");
+        exit(EXIT_FAILURE);
+    }
     byte *new_data = (byte *)erealloc(self->data, sizeof(byte) * new_capacity);
     CHECK_ALLOC(new_data);
 
