@@ -13,6 +13,7 @@ extern int* tr_network_get_domain_resolve_cache_size() {
 }
 
 int find_domain_resolve_cache_lru_entry_index() {
+    if (domain_resolve_cache_size == 0) return 0;
     int lru_index = 0;
     time_t oldest_time = domain_resolve_cache[0].last_used;
 
@@ -77,7 +78,7 @@ extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPair
     }
 
     size_t input_len = strlen(input_dup);
-    int max_pairs = input_len == 0 ? 1 : input_len;
+    size_t max_pairs = input_len == 0 ? 1 : input_len;
     if (max_pairs > SIZE_MAX / sizeof(DomainPortEntry)) {
         fprintf(stderr, "parse_domain_port_pairs: allocation size overflow\n");
         free(input_dup);
@@ -182,11 +183,12 @@ extern void tr_client_destroy(TrClient *client) {
         return;
     }
     client->initialized = false;
-    if (client->socketFd > 0) {
+    if (client->socketFd >= 0) {
         close(client->socketFd);
     }
     if (client->host){
         free(client->host);
+        client->host = NULL;
     }
 }
 

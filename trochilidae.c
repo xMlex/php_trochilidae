@@ -79,6 +79,7 @@ TrTimer *get_or_create_tr_timer(zend_string *timerName) {
 }
 
 void update_server_list() {
+    int prev_count = collector_count;
     DomainPortEntry *pairs = parse_domain_port_pairs(TR_G(server_list), &collector_count);
 
     // Ограничение количества collectors
@@ -86,22 +87,24 @@ void update_server_list() {
         ? PHP_TROCHILIDAE_COLLECTORS_MAX
         : collector_count;
 
-    // Предварительное освобождение старых клиентов
-    for (int i = 0; i < collector_count; i++) {
+    // Освобождение старых клиентов (включая те, что стали вне нового лимита)
+    int cleanup_count = prev_count > collector_count ? prev_count : collector_count;
+    for (int i = 0; i < cleanup_count; i++) {
         tr_client_destroy(&TR_G(collectors)[i]);
     }
 
     // Инициализация новых клиентов
     for (int i = 0; i < collector_count; i++) {
-        TR_G(collectors)[i].host = strdup(pairs[i].domain); // используем strdup для безопасного копирования строки
+        TR_G(collectors)[i].host = strdup(pairs[i].domain);
         if (TR_G(collectors)[i].host == NULL) {
-            continue; // Если не удалось выделить память для строки, пропускаем эту итерацию
+            continue;
         }
 
         TR_G(collectors)[i].port = pairs[i].port;
 
         if (!tr_client_init(&TR_G(collectors)[i])) {
-            free(TR_G(collectors)[i].host); // Если инициализация не удалась, освобождаем память
+            free(TR_G(collectors)[i].host);
+            TR_G(collectors)[i].host = NULL;
         }
     }
 
@@ -232,18 +235,22 @@ static int send_data() {
         modeType = PHP_TROCHILIDAE_MODE_CLI;
     }
 
+    bool domain_fallback = false;
     char *request_domain;
     if (TR_G(requestData).request_domain) {
         request_domain = TR_G(requestData).request_domain;
     } else {
         request_domain = strdup(sapi_module.name);
+        domain_fallback = true;
     }
 
+    bool uri_fallback = false;
     char *request_uri;
     if (TR_G(requestData).request_uri) {
         request_uri = TR_G(requestData).request_uri;
     } else {
         request_uri = strdup(sapi_module.name);
+        uri_fallback = true;
     }
 
     tr_array_init(&TR_G(msg), 0);
@@ -264,7 +271,7 @@ static int send_data() {
 
     //argv
     uint32_t argvCount = 0;
-    const zval *argvList = tr_fetch_global_var_ar(strdup("argv"));
+    const zval *argvList = tr_fetch_global_var_ar("argv");
     if (argvList) {
         argvCount = zend_array_count(Z_ARR_P(argvList));
         tr_array_write_short(&TR_G(msg), &argvCount); // count
@@ -328,6 +335,9 @@ static int send_data() {
     }
 
     tr_array_free(&TR_G(msg));
+
+    if (domain_fallback) free(request_domain);
+    if (uri_fallback) free(request_uri);
 
     return SUCCESS;
 
