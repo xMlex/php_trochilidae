@@ -55,11 +55,27 @@ static void test_single_domain_with_port() {
 static void test_empty_string() {
     TEST("empty string");
     char input[] = "";
-    int numPairs = 1; // set to non-zero to ensure it gets reset
+    int numPairs = 1;
     DomainPortEntry *pairs = parse_domain_port_pairs(input, &numPairs);
     ASSERT(pairs != NULL, "should return non-NULL pointer");
     ASSERT(numPairs == 0, "expected 0 pairs");
     free(pairs);
+    PASS();
+}
+
+static void test_null_input() {
+    TEST("NULL input returns NULL");
+    int numPairs = 99;
+    DomainPortEntry *pairs = parse_domain_port_pairs(NULL, &numPairs);
+    ASSERT(pairs == NULL, "should return NULL");
+    ASSERT(numPairs == 99, "numPairs should be unchanged");
+    PASS();
+}
+
+static void test_null_numpairs() {
+    TEST("NULL numPairs returns NULL");
+    DomainPortEntry *pairs = parse_domain_port_pairs("test.com:80", NULL);
+    ASSERT(pairs == NULL, "should return NULL");
     PASS();
 }
 
@@ -130,6 +146,8 @@ int main() {
     test_mixed_with_and_without_port();
     test_invalid_port_falls_back_to_default();
     test_empty_port_value();
+    test_null_input();
+    test_null_numpairs();
 
     printf("\n=== Results: %d passed, %d failed ===\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;

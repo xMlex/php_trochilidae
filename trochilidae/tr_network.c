@@ -65,15 +65,31 @@ struct in_addr find_ip_address(const char *domain) {
  * @return
  */
 extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPairs) {
-    char *input_dup = strdup(input);
-    DomainPortEntry* pairs = (DomainPortEntry*)malloc(strlen(input_dup) * sizeof(DomainPortEntry));
-    if (pairs == NULL) {
-        fprintf(stderr,"parse_domain_port_pairs: malloc error\n");
-        free(input_dup);
-        return pairs;
+    if (input == NULL || numPairs == NULL) {
+        return NULL;
     }
 
     *numPairs = 0;
+    char *input_dup = strdup(input);
+    if (input_dup == NULL) {
+        fprintf(stderr, "parse_domain_port_pairs: strdup error\n");
+        return NULL;
+    }
+
+    size_t input_len = strlen(input_dup);
+    int max_pairs = input_len == 0 ? 1 : input_len;
+    if (max_pairs > SIZE_MAX / sizeof(DomainPortEntry)) {
+        fprintf(stderr, "parse_domain_port_pairs: allocation size overflow\n");
+        free(input_dup);
+        return NULL;
+    }
+    DomainPortEntry* pairs = (DomainPortEntry*)malloc(sizeof(DomainPortEntry) * max_pairs);
+    if (pairs == NULL) {
+        fprintf(stderr,"parse_domain_port_pairs: malloc error\n");
+        free(input_dup);
+        return NULL;
+    }
+
     const char delimiter[] = ",";
     char* token = strtok(input_dup, delimiter);
 
@@ -96,7 +112,6 @@ extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPair
         (*numPairs)++;
         token = strtok(NULL, delimiter);
     }
-    //printf("parse_domain_port_pairs: %d\n", (*numPairs));
     free(input_dup);
     return pairs;
 }
