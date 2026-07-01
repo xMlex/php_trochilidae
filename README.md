@@ -21,7 +21,26 @@ Enable the extension in `php.ini`:
 
 ```ini
 extension=trochilidae.so
+trochilidae.enabled=1
+trochilidae.server_list=collector1.local:30002,collector2.local:30002
 ```
+
+## Configuration
+
+| INI directive | Type | Default | Description |
+|---|---|---|---|
+| `trochilidae.enabled` | bool | `1` | Enable or disable the extension |
+| `trochilidae.server_list` | string | empty | Comma-separated `host:port` pairs of collector servers |
+
+## How it works
+
+Trochilidae hooks into the PHP request lifecycle:
+
+1. **RINIT** — resets metrics, collects pre-request data (tags, server vars)
+2. During the request, you can add tags and use timers via PHP functions
+3. **RSHUTDOWN** — automatically serialises and sends all collected metrics to the configured collector(s) via UDP
+
+For CLI scripts, metrics are also sent on shutdown; call `trochilidae_flush()` explicitly if you need to send data before the end of the script.
 
 ## Quick start
 
@@ -44,7 +63,7 @@ $info = trochilidae_timer_get_info('db_query');
 // $info['start_count']
 // $info['stop_count']
 
-// Send collected metrics
+//[optional] Send collected metrics (send by default, after execute script/request)
 trochilidae_flush();
 ```
 
@@ -60,8 +79,3 @@ trochilidae_flush();
 | `trochilidae_flush()` | Send collected metrics to the collector |
 | `trochilidae_reset()` | Reset all collected metrics |
 
-## TODO
-
-- ~~REQUEST_TIME from php~~
-- ~~request id~~
-- ~~timers~~
