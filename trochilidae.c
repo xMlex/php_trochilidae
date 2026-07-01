@@ -10,6 +10,7 @@
 #include "SAPI.h"
 #include "php_trochilidae.h"
 #include "trochilidae_arginfo.h"
+#include "trochilidae/tr_hooks.h"
 
 static const zend_function_entry functions[];
 
@@ -176,6 +177,10 @@ PHP_INI_BEGIN()
                         trochilidae_globals)
     STD_PHP_INI_ENTRY("trochilidae.server_list", NULL, PHP_INI_ALL, onUpdateServerList, server_list,
                       zend_trochilidae_globals, trochilidae_globals)
+    STD_PHP_INI_ENTRY("trochilidae.hook_list", "", PHP_INI_ALL, OnUpdateString, hook_list,
+                      zend_trochilidae_globals, trochilidae_globals)
+    STD_PHP_INI_BOOLEAN("trochilidae.debug", "0", PHP_INI_ALL, OnUpdateBool, debug,
+                        zend_trochilidae_globals, trochilidae_globals)
 PHP_INI_END()
 
 static PHP_MINIT_FUNCTION(trochilidae) {
@@ -199,6 +204,8 @@ static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
 
 static PHP_RINIT_FUNCTION(trochilidae) {
     tr_reset();
+    tr_hooks_lazy_attach();
+    tr_hooks_reset();
     return SUCCESS;
 }
 
@@ -313,6 +320,9 @@ static int send_data() {
         }
         ZEND_HASH_FOREACH_END();
     }
+
+    // hooks
+    tr_hooks_serialize(&TR_G(msg));
 
     const size_t sizeMsg = tr_array_get_size(&TR_G(msg));
 

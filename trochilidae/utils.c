@@ -21,12 +21,11 @@ int str_to_int_with_default(const char *str, int default_value) {
     return (int)result;
 }
 
-static bool prng_seeded = false;
-
 uint64_t generate_random_ulong() {
 #ifdef HAVE_ARC4RANDOM
     return ((uint64_t)arc4random() << 32) | arc4random();
 #else
+    static bool prng_seeded = false;
     if (!prng_seeded) {
         srand((unsigned int)(time(NULL) ^ getpid()));
         prng_seeded = true;

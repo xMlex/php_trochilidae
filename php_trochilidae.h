@@ -11,6 +11,7 @@
 #include "trochilidae/tr_network.h"
 #include "trochilidae/tr_timer.h"
 #include "trochilidae/tr_array.h"
+#include "trochilidae/tr_hooks.h"
 
 #ifdef PHP_WIN32
 # define PHP_TROCHILIDAE_API __declspec(dllexport)
@@ -25,6 +26,11 @@ ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
     bool flashed;
     bool modeCli;
     char *server_list;
+    char *hook_list;
+    bool debug;
+    TrHookEntry hooks[TR_MAX_HOOKS];
+    uint32_t hook_count;
+    bool hooks_attached;
     char hostName[HOST_NAME_MAX];
     struct tr_array msg;
     TrClient collectors[PHP_TROCHILIDAE_COLLECTORS_MAX];
