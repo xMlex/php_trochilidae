@@ -79,3 +79,18 @@ trochilidae_flush();
 | `trochilidae_flush()` | Send collected metrics to the collector |
 | `trochilidae_reset()` | Reset all collected metrics |
 
+## Protocol TODO
+
+Planned improvements to the UDP wire format (`docs/protocol.md`):
+
+| # | Change | Why |
+|---|---|---|
+| 1 | **Magic + version** `uint32 + uint8` in chunk header | Distinguish from random UDP noise; enable backward-compatible evolution |
+| 2 | **tv_sec → 64-bit `long`** | Avoid Y2038 overflow (time_t is 64-bit on modern systems) |
+| 3 | **Payload length `uint32`** at start of payload | Self-validating parser; detect corruption/desync early |
+| 4 | **CRC32C or Adler-32** at end of payload | Detect bit errors invisible to UDP checksum |
+| 5 | **Monotonic sequence number** `uint32` in chunk header | Detect lost datagrams; order requests from a single agent |
+| 6 | **Chunk reassembly timeout** on collector | Upper bound for incomplete multi-chunk requests (GC) |
+| 7 | **Drop reserved padding** (8 zero bytes in chunk header) | Save bandwidth (8 bytes per chunk) |
+| 8 | **Implement `compressed` flag** | Payload compression for large requests (planned but unused)
+
