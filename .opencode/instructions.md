@@ -21,6 +21,13 @@ This project is a C-based PHP extension for metrics collection.
 - **Performance:** Maintain low overhead; use custom binary serialization over JSON where possible.
 - **Error Handling:** Use `php_error_docref`.
 
+## Memory Allocator Convention
+- **`trochilidae/tr_network.c`** uses the **system allocator** (`malloc`/`free`/`strdup`), NOT Zend allocator. This is a standalone networking utility that must also compile with stubs.
+- **`trochilidae/tr_array.c`**, **`trochilidae/tr_timer.c`**, and **`trochilidae/tr_hooks.c`** use the **Zend allocator** (`emalloc`/`efree`/`estrdup`).
+- **`trochilidae.c`** uses **both**: data crossing the boundary with `tr_network.c` (`client->host`, `pairs`) uses system allocator to match; PHP-internal data (`request_id`) uses Zend allocator.
+- **Callers must match the callee's allocator**: if `parse_domain_port_pairs` allocates with `malloc`, the caller must free with `free` (not `efree`). Never mix allocators for the same pointer.
+- **Test stubs** (`tests/stubs/php.h`) map `emalloc → malloc`, `efree → free`, `estrdup → strdup` to allow internal test builds outside of PHP context.
+
 ## Build & Test Workflow
 1.  **Configuration:** `phpize && ./configure --enable-trochilidae`
 2.  **Compilation:** `make`
