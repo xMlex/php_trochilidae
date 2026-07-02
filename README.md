@@ -100,7 +100,7 @@ trochilidae_flush();
 | S3 | **Non-blocking `sendto`** | `tr_network.c:281` | Blocking `sendto` stalls PHP worker when kernel buffer is full |
 | S4 | **Rate limiting / async queue** | `send_data` | Every request fires `sendto`. If collector lags, sender has no backpressure mechanism |
 | S5 | **`strncpy` in DNS cache + domain port parser** | `tr_network.c:47,54,107,110` | `strcpy` can overflow if input domain > 254 bytes |
-| S6 | **Fix DNS refresh guard** | `tr_network.c:211` | `sock_address_refresh_at > (t + timeout)` is always false → DNS re-lookup every request |
+| S6 | ~~**Fix DNS refresh guard**~~ | ~~`tr_network.c:211`~~ | ✅ Done |
 | S7 | **`php_error_docref` instead of `fprintf(stderr)`** | `tr_network.c` | `fprintf(stderr)` bypasses PHP error log. At scale, errors become invisible |
 | S8 | **Use `client->chunk_count` in send limit check** | `tr_network.c:249` | Check uses `MAX_CHUNKS` instead of `client->chunk_count` |
 | S9 | **Heap-allocate chunk packet** | `tr_network.c:276` | `char packet[65507]` on stack — risk of overflow on constrained stacks |

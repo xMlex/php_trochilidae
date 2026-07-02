@@ -223,7 +223,7 @@ int tr_client_set_addr_info(TrClient *client) {
 
 extern bool tr_client_refresh_server(TrClient *client) {
     const time_t t = time(NULL);
-    if (client->sock_address_refresh_at > (t + domain_resolve_cache_timeout)) {
+    if (client->sock_address_refresh_at != 0 && t < (client->sock_address_refresh_at + domain_resolve_cache_timeout)) {
         return true;
     }
 
