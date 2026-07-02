@@ -105,6 +105,6 @@ trochilidae_flush();
 | S8 | **Use `client->chunk_count` in send limit check** | `tr_network.c:249` | Check uses `MAX_CHUNKS` instead of `client->chunk_count` |
 | S9 | **Heap-allocate chunk packet** | `tr_network.c:276` | `char packet[65507]` on stack — risk of overflow on constrained stacks |
 | S10 | **IPv6 support (`sockaddr_storage` + `getaddrinfo`)** | `tr_network.h:62` | Currently `sockaddr_in` = IPv4 only |
-| S11 | **Fix `totalSentSize += sent` counting header** | `tr_network.c:283` | Inflates byte metric by 21 bytes per chunk |
+| S11 | ~~**Fix `totalSentSize += sent` counting header**~~ | | ✅ By design — `send_chunks` returns actual wire bytes, not payload bytes |
 | S12 | **Fix `tv_usec` calc: `1e6 * 1000` → `1e6`** | `trochilidae.c:502,508` | Double multiplication produces wrong microseconds |
 
