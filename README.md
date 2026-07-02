@@ -84,27 +84,18 @@ trochilidae_flush();
 ### 🟢 Protocol (`docs/protocol.md`)
 
 | # | Change | Why |
-|---|---|---|
-| P1 | **Magic + version** `uint32 + uint8` in chunk header | Distinguish from random UDP noise; enable backward-compatible evolution |
+|---|---|---|---|
+| P1 | ~~**Magic + version** `uint16 + uint16` in chunk header~~ | ~~`tr_network.c`~~ | ✅ Done |
 | P2 | **tv_sec → 64-bit `long`** | Avoid Y2038 overflow (time_t is 64-bit on modern systems) |
-| P3 | **Payload length `uint32`** at start of payload | Self-validating parser; detect corruption/desync early |
+| P3 | ~~**Payload length `uint32`** in chunk header (bytes 17-20)~~ | ~~`tr_network.c`~~ | ✅ Done (merged with P1, uses previously reserved padding) |
 | P4 | **CRC32C or Adler-32** at end of payload | Detect bit errors invisible to UDP checksum |
 | P5 | **Monotonic sequence number** `uint32` in chunk header | Detect lost datagrams; order requests from a single agent |
-| P6 | **Drop reserved padding** (8 zero bytes in chunk header) | Save bandwidth (8 bytes per chunk) |
+| P6 | ~~**Drop reserved padding**~~ | ~~`tr_network.c`~~ | ✅ Not needed — padding reused for P1+P3 |
 
 ### 🔴 Stability & Scalability (code)
 
 | # | Change | Where | Why |
 |---|---|---|---|
-| S2 | ~~**Replace `gethostbyname` with `getaddrinfo`**~~ | ~~`tr_network.c:40`~~ | ✅ Done |
-| S3 | ~~**Non-blocking `sendto`**~~ | ~~`tr_network.c:281`~~ | ✅ Done (combined with S4) |
-| S4 | ~~**Rate limiting / async queue**~~ | ~~`send_data`~~ | ✅ Done — non-blocking + drop counter. When kernel buffer is full, packets are counted as drops instead of stalling the worker |
-| S5 | ~~**`strncpy` in DNS cache + domain port parser**~~ | ~~`tr_network.c:47,54,107,110`~~ | ✅ Done |
-| S6 | ~~**Fix DNS refresh guard**~~ | ~~`tr_network.c:211`~~ | ✅ Done |
-| S7 | ~~**`php_error_docref` instead of `fprintf(stderr)`**~~ | ~~`tr_network.c`~~ | ✅ Done |
-| S8 | ~~**Use `client->chunk_count` in send limit check**~~ | ~~`tr_network.c:249`~~ | ✅ Done |
-| S9 | ~~**Heap-allocate chunk packet**~~ | ~~`tr_network.c:276`~~ | ✅ Done |
 | S10 | **IPv6 support (`sockaddr_storage` + `getaddrinfo`)** | `tr_network.h:62` | Currently `sockaddr_in` = IPv4 only |
-| S11 | ~~**Fix `totalSentSize += sent` counting header**~~ | | ✅ By design — `send_chunks` returns actual wire bytes, not payload bytes |
 | S12 | **Fix `tv_usec` calc: `1e6 * 1000` → `1e6`** | `trochilidae.c:502,508` | Double multiplication produces wrong microseconds |
 

@@ -310,8 +310,22 @@ while (true) {
         continue;
     }
 
-    // Parse chunk header: packetId(8) + chunkNum(2) + totalChunks(2) + compressed(1) + key(8)
-    $header = unpack('PpacketId/vchunkNum/vtotalChunks/Ccompressed', $packet);
+    // Parse chunk header: packetId(8) + chunkNum(2) + totalChunks(2) + compressed(1) + magic(2) + version(2) + payload_len(4)
+    $header = unpack('PpacketId/vchunkNum/vtotalChunks/Ccompressed/vmagic/vversion/Vpayload_len', $packet);
+
+    if ($header['magic'] !== 0x5452) {
+        if ($verbose) {
+            echo "Ignored packet with bad magic (0x" . dechex($header['magic']) . ")\n";
+        }
+        continue;
+    }
+    if ($header['version'] !== 1) {
+        if ($verbose) {
+            echo "Ignored packet with unsupported version ({$header['version']})\n";
+        }
+        continue;
+    }
+
     $body = substr($packet, CHUNK_HEADER_SIZE);
 
     $pid = $header['packetId'];

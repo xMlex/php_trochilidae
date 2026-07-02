@@ -292,13 +292,19 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         const size_t offset = i * chunk_size;
         const size_t current_chunk_size = (offset + chunk_size > size) ? (size - offset) : chunk_size;
 
-        // Формат: [идентификатор (8 байт)][номер чанка (2 байта)][всего чанков (2 байта)][сжато да/нет (1 байт)][ключ 8 байт]
+        // Формат: [packetId(8)][chunkNum(2)][totalChunks(2)][compressed(1)][magic(2)][version(2)][payload_len(4)]
         unsigned char chunk_header[CHUNK_HEADER_SIZE];
         memcpy(chunk_header, &packetId, 8);
         memcpy(chunk_header + 8, &i, 2);
         memcpy(chunk_header + 10, &total_chunks, 2);
         memcpy(chunk_header + 12, &compressed, 1);
-        memset(chunk_header + 13, 0, 8); // key
+
+        uint16_t magic = 0x5452;
+        uint16_t version = 1;
+        uint32_t payload_len = (uint32_t)size;
+        memcpy(chunk_header + 13, &magic, 2);
+        memcpy(chunk_header + 15, &version, 2);
+        memcpy(chunk_header + 17, &payload_len, 4);
 
         // Формируем полный пакет
         memcpy(packet, chunk_header, CHUNK_HEADER_SIZE);
