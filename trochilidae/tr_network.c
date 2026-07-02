@@ -54,14 +54,16 @@ struct in_addr find_ip_address(const char *domain) {
 
         // Add to cache
         if (domain_resolve_cache_size < DOMAIN_RESOLVE_MAX_CACHE_ENTRIES) {
-            strcpy(domain_resolve_cache[domain_resolve_cache_size].domain, domain);
+            strlcpy(domain_resolve_cache[domain_resolve_cache_size].domain, domain,
+                    sizeof(domain_resolve_cache[domain_resolve_cache_size].domain));
             domain_resolve_cache[domain_resolve_cache_size].ip = ip;
             domain_resolve_cache[domain_resolve_cache_size].last_used = time(NULL);
             domain_resolve_cache_size++;
         } else {
             // Replace least recently used entry
             int lru_index = find_domain_resolve_cache_lru_entry_index();
-            strcpy(domain_resolve_cache[lru_index].domain, domain);
+            strlcpy(domain_resolve_cache[lru_index].domain, domain,
+                    sizeof(domain_resolve_cache[lru_index].domain));
             domain_resolve_cache[lru_index].ip = ip;
             domain_resolve_cache[lru_index].last_used = time(NULL);
         }
@@ -110,14 +112,20 @@ extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPair
 
         char* portSeparator = strchr(token, ':');
         if (portSeparator != NULL) {
-            strncpy(domain, token, portSeparator - token);
-            domain[portSeparator - token] = '\0';
+            size_t domain_len = (size_t)(portSeparator - token);
+            if (domain_len >= sizeof(domain)) {
+                php_error_docref(NULL, E_WARNING, "[tr] domain part too long in '%s', skipping", token);
+                token = strtok(NULL, delimiter);
+                continue;
+            }
+            memcpy(domain, token, domain_len);
+            domain[domain_len] = '\0';
             port = str_to_int_with_default(portSeparator + 1, PHP_TROCHILIDAE_SERVER_DEFAULT_PORT);
         } else {
-            strcpy(domain, token);
+            strlcpy(domain, token, sizeof(domain));
         }
 
-        strcpy(pairs[*numPairs].domain, domain);
+        strlcpy(pairs[*numPairs].domain, domain, sizeof(pairs[*numPairs].domain));
         pairs[*numPairs].port = port;
 
         (*numPairs)++;
