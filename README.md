@@ -97,8 +97,8 @@ trochilidae_flush();
 | # | Change | Where | Why |
 |---|---|---|---|
 | S2 | ~~**Replace `gethostbyname` with `getaddrinfo`**~~ | ~~`tr_network.c:40`~~ | ✅ Done |
-| S3 | **Non-blocking `sendto`** | `tr_network.c:281` | Blocking `sendto` stalls PHP worker when kernel buffer is full |
-| S4 | **Rate limiting / async queue** | `send_data` | Every request fires `sendto`. If collector lags, sender has no backpressure mechanism |
+| S3 | ~~**Non-blocking `sendto`**~~ | ~~`tr_network.c:281`~~ | ✅ Done (combined with S4) |
+| S4 | ~~**Rate limiting / async queue**~~ | ~~`send_data`~~ | ✅ Done — non-blocking + drop counter. When kernel buffer is full, packets are counted as drops instead of stalling the worker |
 | S5 | **`strncpy` in DNS cache + domain port parser** | `tr_network.c:47,54,107,110` | `strcpy` can overflow if input domain > 254 bytes |
 | S6 | ~~**Fix DNS refresh guard**~~ | ~~`tr_network.c:211`~~ | ✅ Done |
 | S7 | ~~**`php_error_docref` instead of `fprintf(stderr)`**~~ | ~~`tr_network.c`~~ | ✅ Done |

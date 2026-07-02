@@ -184,6 +184,9 @@ extern bool tr_client_create(TrClient *client) {
         php_error_docref(NULL, E_WARNING, "[tr_client_create] setsockopt SO_SNDBUF failed");
     }
 
+    int flags = fcntl(client->socketFd, F_GETFL, 0);
+    fcntl(client->socketFd, F_SETFL, flags | O_NONBLOCK);
+
     if (!tr_client_set_addr_info(client)) {
         return false;
     }
@@ -296,11 +299,15 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         // Отправляем пакет
         const ssize_t sent = sendto(client->socketFd, packet, current_chunk_size + CHUNK_HEADER_SIZE, 0,
                               (const struct sockaddr *)&client->sock_address_in, sizeof(client->sock_address_in));
-        totalSentSize += sent;
         if (sent < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                client->drops++;
+                continue;
+            }
             php_error_docref(NULL, E_WARNING, "[tr-send_chunks] sendto error: %s", strerror(errno));
             return -1;
         }
+        totalSentSize += sent;
     }
     free(packet);
     return totalSentSize;

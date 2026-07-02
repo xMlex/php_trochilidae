@@ -384,6 +384,13 @@ static PHP_MINFO_FUNCTION(trochilidae) {
     snprintf(bufName, sizeof(bufName), "%d", *tr_network_get_domain_resolve_cache_size());
     php_info_print_table_row(2, "DNS Resolve cache count:", bufName);
 
+    unsigned long totalDrops = 0;
+    for (int i = 0; i < collector_count; ++i) {
+        totalDrops += TR_G(collectors)[i].drops;
+    }
+    snprintf(bufName, sizeof(bufName), "%lu", totalDrops);
+    php_info_print_table_row(2, "Dropped packets", bufName);
+
     for (int i = 0; i < collector_count; ++i) {
         if (!TR_G(collectors)[i].initialized) {
             continue;

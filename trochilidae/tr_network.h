@@ -7,6 +7,7 @@
 
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <netdb.h>
@@ -67,6 +68,7 @@ typedef struct {
     int port;
     size_t chunk_size;
     unsigned short chunk_count;
+    unsigned long drops;
 } TrClient;
 
 typedef struct {
