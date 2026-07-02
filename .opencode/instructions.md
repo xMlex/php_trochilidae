@@ -31,12 +31,54 @@ This project is a C-based PHP extension for metrics collection.
 ## Build & Test Workflow
 1.  **Configuration:** `phpize && ./configure --enable-trochilidae`
 2.  **Compilation:** `make`
-3.  **PHP tests:** `make test`
+3.  **PHP .phpt tests:**
+    `php -d extension=modules/trochilidae.so run-tests.php -d extension=modules/trochilidae.so tests/`
+    *Note:* The `-d extension=...` flag must be passed **both** to `run-tests.php` (so it propagates to child processes) and to the parent process for the skip checks.
 4.  **C unit tests (network):**
     `gcc -I. -Itests/stubs -DHAVE_CONFIG_H -g -O0 tests/unit_test.c trochilidae/tr_network.c trochilidae/utils.c -o tests/unit_test -lm && ./tests/unit_test`
 5.  **C unit tests (internal — tr_array, tr_timer):**
     `gcc -I. -Itests/stubs -DHAVE_CONFIG_H -g -O0 tests/tr_internal_test.c -o tests/tr_internal_test -lm && ./tests/tr_internal_test`
     *Note:* These use `tests/stubs/php.h` to mock the Zend API outside of PHP context.
+
+### E2E Tests (UDP protocol validation)
+
+E2E tests verify that the extension correctly sends binary UDP packets (chunked protocol) by directing traffic to a local UDP test server that parses and validates the wire format.
+
+1.  **Start the UDP test server:**
+    ```bash
+    php -d extension=modules/trochilidae.so tests/udp_test_server.php --port=30002 --timeout=3 --verbose
+    ```
+    - Listens on `udp://0.0.0.0:30002` for chunked trochilidae packets.
+    - Reassembles chunks, parses the binary protocol, and prints the decoded fields.
+    - Exit code `0` — packet received and valid; `1` — timeout/error.
+    - Supports `--expect=FILE.json` for deterministic field validation.
+
+2.  **Run PHP scripts that send metrics via the extension:**
+    ```bash
+    php -d extension=modules/trochilidae.so -d "trochilidae.server_list=127.0.0.1:30002" \
+      -r 'trochilidae_set_tag("e2e", "test"); trochilidae_flush();'
+    ```
+
+3.  **Full automated E2E cycle** (as used in `tests/install_test.sh`):
+    ```bash
+    UDP_PORT=30008
+    UDP_LOG=$(mktemp)
+    php -d extension=modules/trochilidae.so tests/udp_test_server.php \
+      --port=$UDP_PORT --timeout=3 --verbose > "$UDP_LOG" 2>&1 &
+    UDP_PID=$!
+    # wait for "ready" in log, then run test PHP scripts
+    php -d extension=modules/trochilidae.so -d "trochilidae.server_list=127.0.0.1:$UDP_PORT" \
+      -r 'trochilidae_set_tag("t", "1"); trochilidae_flush();'
+    sleep 0.5
+    kill $UDP_PID 2>/dev/null; wait $UDP_PID 2>/dev/null || true
+    grep -q "=== Parsed packet ===" "$UDP_LOG" && echo "E2E PASS" || echo "E2E FAIL"
+    rm -f "$UDP_LOG"
+    ```
+
+**Key points:**
+- Tests that run with a real `trochilidae.server_list` setting emit UDP packets — those packets go to the configured server.
+- For isolated .phpt tests that don't need a server, set `trochilidae.server_list=localhost` (the packets will be sent but never arrive, which is harmless).
+- For full protocol validation, use the UDP test server as shown above.
 
 ## Stubs
 - `tests/stubs/php.h`: Minimal stub for `emalloc`/`erealloc`/`efree`/`estrdup` and `zend_resource` — used by `tr_internal_test.c` to compile without the real PHP headers.
