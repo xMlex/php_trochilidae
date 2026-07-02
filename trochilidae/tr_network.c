@@ -263,7 +263,7 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
     const unsigned short total_chunks = (size + chunk_size - 1) / chunk_size;
 
     if (total_chunks > client->chunk_count) {
-        php_error_docref(NULL, E_WARNING, "[tr-send_chunks] Data too large to send in %d chunks", MAX_CHUNKS);
+        php_error_docref(NULL, E_WARNING, "[tr-send_chunks] Data too large to send in %d chunks", client->chunk_count);
         return -1;
     }
 
