@@ -15,12 +15,17 @@ Offset  Size  Field         Description
  8       2    chunkIdx      uint16 LE — zero-based chunk index
 10       2    totalChunks   uint16 LE — total number of chunks
 12       1    compressed    uint8  — 0 = uncompressed, 1 = compressed (reserved)
-13       8    key/padding   uint8[8] — reserved, zero-filled
+13       2    magic         uint16 LE — "TR" (0x5452), identifies valid trochilidae packets
+15       2    version       uint16 LE — protocol version (currently 1)
+17       4    payloadLen    uint32 LE — total reassembled payload size (all chunks combined)
 ──────────────────────────────────────────
 Total:   21 bytes
 ```
 
 The full UDP datagram = `chunk_header(21) + chunk_payload(chunk_size - 21)`.
+
+Receivers **must** validate `magic == 0x5452` and `version == 1` before processing a chunk.
+Chunks with unknown magic or version are silently ignored.
 
 ## Serialization Primitives
 
