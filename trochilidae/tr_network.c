@@ -83,9 +83,9 @@ extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPair
     }
 
     *numPairs = 0;
-    char *input_dup = strdup(input);
+    char *input_dup = estrdup(input);
     if (input_dup == NULL) {
-        php_error_docref(NULL, E_WARNING, "parse_domain_port_pairs: strdup error");
+        php_error_docref(NULL, E_WARNING, "parse_domain_port_pairs: estrdup error");
         return NULL;
     }
 
@@ -93,13 +93,13 @@ extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPair
     size_t max_pairs = input_len == 0 ? 1 : input_len;
     if (max_pairs > SIZE_MAX / sizeof(DomainPortEntry)) {
         php_error_docref(NULL, E_WARNING, "parse_domain_port_pairs: allocation size overflow");
-        free(input_dup);
+        efree(input_dup);
         return NULL;
     }
-    DomainPortEntry* pairs = (DomainPortEntry*)malloc(sizeof(DomainPortEntry) * max_pairs);
+    DomainPortEntry* pairs = (DomainPortEntry*)emalloc(sizeof(DomainPortEntry) * max_pairs);
     if (pairs == NULL) {
-        php_error_docref(NULL, E_WARNING, "parse_domain_port_pairs: malloc error");
-        free(input_dup);
+        php_error_docref(NULL, E_WARNING, "parse_domain_port_pairs: emalloc error");
+        efree(input_dup);
         return NULL;
     }
 
@@ -131,7 +131,7 @@ extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPair
         (*numPairs)++;
         token = strtok(NULL, delimiter);
     }
-    free(input_dup);
+    efree(input_dup);
     return pairs;
 }
 
@@ -214,7 +214,7 @@ extern void tr_client_destroy(TrClient *client) {
         close(client->socketFd);
     }
     if (client->host){
-        free(client->host);
+        efree(client->host);
         client->host = NULL;
     }
 }
@@ -278,9 +278,9 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         return -1;
     }
 
-    char *packet = malloc(MAX_CHUNK_SIZE);
+    char *packet = emalloc(MAX_CHUNK_SIZE);
     if (!packet) {
-        php_error_docref(NULL, E_WARNING, "[tr-send_chunks] malloc failed");
+        php_error_docref(NULL, E_WARNING, "[tr-send_chunks] emalloc failed");
         return -1;
     }
 
@@ -323,7 +323,7 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         }
         totalSentSize += sent;
     }
-    free(packet);
+    efree(packet);
     return totalSentSize;
 }
 
