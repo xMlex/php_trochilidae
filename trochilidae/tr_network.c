@@ -36,12 +36,21 @@ struct in_addr find_ip_address(const char *domain) {
         }
     }
 
-    // If not found in cache, perform DNS lookup
-    struct hostent *host_entry = gethostbyname(domain);
-    if (host_entry == NULL || host_entry->h_addr_list[0] == NULL) {
+    // If not found in cache, perform DNS lookup (thread-safe getaddrinfo)
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+
+    struct addrinfo *result = NULL;
+    const int err = getaddrinfo(domain, NULL, &hints, &result);
+    if (err != 0 || result == NULL) {
+        fprintf(stderr, "[tr] getaddrinfo failed for %s: %s\n", domain, gai_strerror(err));
         ip.s_addr = INADDR_NONE;
     } else {
-        ip = *(struct in_addr *) host_entry->h_addr_list[0];
+        ip = ((struct sockaddr_in *)result->ai_addr)->sin_addr;
+        freeaddrinfo(result);
+
         // Add to cache
         if (domain_resolve_cache_size < DOMAIN_RESOLVE_MAX_CACHE_ENTRIES) {
             strcpy(domain_resolve_cache[domain_resolve_cache_size].domain, domain);

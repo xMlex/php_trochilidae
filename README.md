@@ -96,8 +96,7 @@ trochilidae_flush();
 
 | # | Change | Where | Why |
 |---|---|---|---|
-| S1 | **Move `setsockopt SO_SNDBUF` to init, set to 256KB** | `tr_network.c:257` | Current: sets per-send to payload_size (~1.4KB). Under load → kernel buffer overflow → silent packet loss |
-| S2 | **Replace `gethostbyname` with `getaddrinfo`** | `tr_network.c:40` | `gethostbyname` is not thread-safe. PHP-FPM with 10+ workers → race condition on DNS, possible SIGSEGV |
+| S2 | ~~**Replace `gethostbyname` with `getaddrinfo`**~~ | ~~`tr_network.c:40`~~ | ✅ Done |
 | S3 | **Non-blocking `sendto`** | `tr_network.c:281` | Blocking `sendto` stalls PHP worker when kernel buffer is full |
 | S4 | **Rate limiting / async queue** | `send_data` | Every request fires `sendto`. If collector lags, sender has no backpressure mechanism |
 | S5 | **`strncpy` in DNS cache + domain port parser** | `tr_network.c:47,54,107,110` | `strcpy` can overflow if input domain > 254 bytes |
