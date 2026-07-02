@@ -101,7 +101,7 @@ trochilidae_flush();
 | S4 | **Rate limiting / async queue** | `send_data` | Every request fires `sendto`. If collector lags, sender has no backpressure mechanism |
 | S5 | **`strncpy` in DNS cache + domain port parser** | `tr_network.c:47,54,107,110` | `strcpy` can overflow if input domain > 254 bytes |
 | S6 | ~~**Fix DNS refresh guard**~~ | ~~`tr_network.c:211`~~ | ✅ Done |
-| S7 | **`php_error_docref` instead of `fprintf(stderr)`** | `tr_network.c` | `fprintf(stderr)` bypasses PHP error log. At scale, errors become invisible |
+| S7 | ~~**`php_error_docref` instead of `fprintf(stderr)`**~~ | ~~`tr_network.c`~~ | ✅ Done |
 | S8 | **Use `client->chunk_count` in send limit check** | `tr_network.c:249` | Check uses `MAX_CHUNKS` instead of `client->chunk_count` |
 | S9 | ~~**Heap-allocate chunk packet**~~ | ~~`tr_network.c:276`~~ | ✅ Done |
 | S10 | **IPv6 support (`sockaddr_storage` + `getaddrinfo`)** | `tr_network.h:62` | Currently `sockaddr_in` = IPv4 only |

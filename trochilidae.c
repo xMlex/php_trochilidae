@@ -507,7 +507,7 @@ static inline struct timeval tr_fetch_global_var_tv(const char *name) {
             tv.tv_sec = (time_t) time_float;
             tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6 * 1000);
         } else {
-            fprintf(stderr, "[tr] incorrect string val in _SERVER[%s] variable\n", name);
+            php_error_docref(NULL, E_NOTICE, "[tr] incorrect string val in _SERVER[%s] variable", name);
         }
     }
     return tv;

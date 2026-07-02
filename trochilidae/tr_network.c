@@ -2,6 +2,7 @@
 // Created by xMlex on 13.09.2021.
 //
 
+#include "php.h"
 #include "trochilidae/tr_network.h"
 
 DomainResolveCacheEntry domain_resolve_cache[PHP_TROCHILIDAE_COLLECTORS_MAX];
@@ -45,7 +46,7 @@ struct in_addr find_ip_address(const char *domain) {
     struct addrinfo *result = NULL;
     const int err = getaddrinfo(domain, NULL, &hints, &result);
     if (err != 0 || result == NULL) {
-        fprintf(stderr, "[tr] getaddrinfo failed for %s: %s\n", domain, gai_strerror(err));
+        php_error_docref(NULL, E_WARNING, "[tr] getaddrinfo failed for %s: %s", domain, gai_strerror(err));
         ip.s_addr = INADDR_NONE;
     } else {
         ip = ((struct sockaddr_in *)result->ai_addr)->sin_addr;
@@ -82,20 +83,20 @@ extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPair
     *numPairs = 0;
     char *input_dup = strdup(input);
     if (input_dup == NULL) {
-        fprintf(stderr, "parse_domain_port_pairs: strdup error\n");
+        php_error_docref(NULL, E_WARNING, "parse_domain_port_pairs: strdup error");
         return NULL;
     }
 
     size_t input_len = strlen(input_dup);
     size_t max_pairs = input_len == 0 ? 1 : input_len;
     if (max_pairs > SIZE_MAX / sizeof(DomainPortEntry)) {
-        fprintf(stderr, "parse_domain_port_pairs: allocation size overflow\n");
+        php_error_docref(NULL, E_WARNING, "parse_domain_port_pairs: allocation size overflow");
         free(input_dup);
         return NULL;
     }
     DomainPortEntry* pairs = (DomainPortEntry*)malloc(sizeof(DomainPortEntry) * max_pairs);
     if (pairs == NULL) {
-        fprintf(stderr,"parse_domain_port_pairs: malloc error\n");
+        php_error_docref(NULL, E_WARNING, "parse_domain_port_pairs: malloc error");
         free(input_dup);
         return NULL;
     }
@@ -169,18 +170,18 @@ extern bool tr_client_init(TrClient *client) {
 
 extern bool tr_client_create(TrClient *client) {
     if (client->initialized) {
-        fprintf(stderr, "tr_client_create: client initialized\n");
+        php_error_docref(NULL, E_WARNING, "tr_client_create: client initialized");
         return false;
     }
 
     if ((client->socketFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        fprintf(stderr, "tr_client_create: socket creation failed\n");
+        php_error_docref(NULL, E_WARNING, "tr_client_create: socket creation failed");
         return false;
     }
 
     int sndbuf = PHP_TROCHILIDAE_SO_SNDBUF_SIZE;
     if (setsockopt(client->socketFd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf)) < 0) {
-        fprintf(stderr, "[tr_client_create] setsockopt SO_SNDBUF failed");
+        php_error_docref(NULL, E_WARNING, "[tr_client_create] setsockopt SO_SNDBUF failed");
     }
 
     if (!tr_client_set_addr_info(client)) {
@@ -209,7 +210,7 @@ extern void tr_client_destroy(TrClient *client) {
 
 int tr_client_set_addr_info(TrClient *client) {
     if (strcmp(client->host, "") == 0) {
-        fprintf(stderr, "tr_client_set_addr_info: not set client->host\n");
+        php_error_docref(NULL, E_WARNING, "tr_client_set_addr_info: not set client->host");
         return false;
     }
     if (client->port <= 0) {
@@ -232,7 +233,7 @@ extern bool tr_client_refresh_server(TrClient *client) {
     struct in_addr tmp_addr = find_ip_address(client->host);
 
     if (tmp_addr.s_addr == INADDR_NONE) {
-        fprintf(stderr, "tr_client_refresh_server: INADDR_NONE for %s\n", client->host);
+        php_error_docref(NULL, E_WARNING, "tr_client_refresh_server: INADDR_NONE for %s", client->host);
         // try refresh after 25 sec
         client->sock_address_refresh_at = t - domain_resolve_cache_timeout + 25;
         return false;
@@ -245,35 +246,34 @@ extern bool tr_client_refresh_server(TrClient *client) {
 
 ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const bool compressed) {
     if (!client || !data || size == 0) {
-        fprintf(stderr, "[tr-send_chunks] Invalid input parameters\n");
+        php_error_docref(NULL, E_WARNING, "[tr-send_chunks] Invalid input parameters");
         return -1;
     }
 
     const size_t chunk_size = client->chunk_size - CHUNK_HEADER_SIZE;
     if (chunk_size <= 0) {
-        fprintf(stderr, "[tr-send_chunks] chunk_size small, need > %d\n", CHUNK_HEADER_SIZE);
+        php_error_docref(NULL, E_WARNING, "[tr-send_chunks] chunk_size small, need > %d", CHUNK_HEADER_SIZE);
         return -1;
     }
     if (client->chunk_size > MAX_CHUNK_SIZE) {
-        fprintf(stderr, "[tr-send_chunks]  Chunk size too large(%lu), max: %d\n", chunk_size, MAX_CHUNK_SIZE);
+        php_error_docref(NULL, E_WARNING, "[tr-send_chunks] Chunk size too large(%zu), max: %d", chunk_size, MAX_CHUNK_SIZE);
         return -1;
     }
 
     const unsigned short total_chunks = (size + chunk_size - 1) / chunk_size;
 
     if (total_chunks > client->chunk_count) {
-        fprintf(stderr, "[tr-send_chunks] Data too large to send in %d chunks\n", MAX_CHUNKS);
+        php_error_docref(NULL, E_WARNING, "[tr-send_chunks] Data too large to send in %d chunks", MAX_CHUNKS);
         return -1;
     }
 
     char *packet = malloc(MAX_CHUNK_SIZE);
     if (!packet) {
-        fprintf(stderr, "[tr-send_chunks] malloc failed\n");
+        php_error_docref(NULL, E_WARNING, "[tr-send_chunks] malloc failed");
         return -1;
     }
 
     const uint64_t packetId = generate_random_ulong();
-    //fprintf(stderr, "[tr-send_chunks] packetId %llu, chunks: %d\n", packetId, total_chunks);
 
     ssize_t totalSentSize = 0;
     unsigned short i = 0;
@@ -297,13 +297,11 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         const ssize_t sent = sendto(client->socketFd, packet, current_chunk_size + CHUNK_HEADER_SIZE, 0,
                               (const struct sockaddr *)&client->sock_address_in, sizeof(client->sock_address_in));
         totalSentSize += sent;
-        //fprintf(stderr, "[tr-send_chunks] process packetId %llu, chunk: %d, sent: %lu\n", packetId, i, sent);
         if (sent < 0) {
-            perror("[tr-send_chunks] sendto error");
+            php_error_docref(NULL, E_WARNING, "[tr-send_chunks] sendto error: %s", strerror(errno));
             return -1;
         }
     }
-    //fprintf(stderr, "[tr-send_chunks] Total packetId %llu, chunk: %d, sent: %lu\n", packetId, i, totalSentSize);
     free(packet);
     return totalSentSize;
 }
