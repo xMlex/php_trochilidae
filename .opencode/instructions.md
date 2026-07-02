@@ -33,7 +33,7 @@ This project is a C-based PHP extension for metrics collection.
 2.  **Compilation:** `make`
 3.  **PHP tests:** `make test`
 4.  **C unit tests (network):**
-    `gcc -I/usr/include/php -I/usr/include/php/main -I/usr/include/php/Zend -I/usr/include/php/TSRM -I/usr/include/php/ext -I. -DHAVE_CONFIG_H -D_GNU_SOURCE -g -O0 tests/unit_test.c trochilidae/tr_network.c trochilidae/utils.c -o tests/unit_test && ./tests/unit_test`
+    `gcc -I. -Itests/stubs -DHAVE_CONFIG_H -g -O0 tests/unit_test.c trochilidae/tr_network.c trochilidae/utils.c -o tests/unit_test -lm && ./tests/unit_test`
 5.  **C unit tests (internal — tr_array, tr_timer):**
     `gcc -I. -Itests/stubs -DHAVE_CONFIG_H -g -O0 tests/tr_internal_test.c -o tests/tr_internal_test -lm && ./tests/tr_internal_test`
     *Note:* These use `tests/stubs/php.h` to mock the Zend API outside of PHP context.
