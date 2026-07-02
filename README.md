@@ -103,7 +103,7 @@ trochilidae_flush();
 | S6 | ~~**Fix DNS refresh guard**~~ | ~~`tr_network.c:211`~~ | ✅ Done |
 | S7 | **`php_error_docref` instead of `fprintf(stderr)`** | `tr_network.c` | `fprintf(stderr)` bypasses PHP error log. At scale, errors become invisible |
 | S8 | **Use `client->chunk_count` in send limit check** | `tr_network.c:249` | Check uses `MAX_CHUNKS` instead of `client->chunk_count` |
-| S9 | **Heap-allocate chunk packet** | `tr_network.c:276` | `char packet[65507]` on stack — risk of overflow on constrained stacks |
+| S9 | ~~**Heap-allocate chunk packet**~~ | ~~`tr_network.c:276`~~ | ✅ Done |
 | S10 | **IPv6 support (`sockaddr_storage` + `getaddrinfo`)** | `tr_network.h:62` | Currently `sockaddr_in` = IPv4 only |
 | S11 | ~~**Fix `totalSentSize += sent` counting header**~~ | | ✅ By design — `send_chunks` returns actual wire bytes, not payload bytes |
 | S12 | **Fix `tv_usec` calc: `1e6 * 1000` → `1e6`** | `trochilidae.c:502,508` | Double multiplication produces wrong microseconds |

@@ -266,6 +266,12 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         return -1;
     }
 
+    char *packet = malloc(MAX_CHUNK_SIZE);
+    if (!packet) {
+        fprintf(stderr, "[tr-send_chunks] malloc failed\n");
+        return -1;
+    }
+
     const uint64_t packetId = generate_random_ulong();
     //fprintf(stderr, "[tr-send_chunks] packetId %llu, chunks: %d\n", packetId, total_chunks);
 
@@ -284,7 +290,6 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         memset(chunk_header + 13, 0, 8); // key
 
         // Формируем полный пакет
-        char packet[MAX_CHUNK_SIZE];
         memcpy(packet, chunk_header, CHUNK_HEADER_SIZE);
         memcpy(packet + CHUNK_HEADER_SIZE, data + offset, current_chunk_size);
 
@@ -299,6 +304,7 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         }
     }
     //fprintf(stderr, "[tr-send_chunks] Total packetId %llu, chunk: %d, sent: %lu\n", packetId, i, totalSentSize);
+    free(packet);
     return totalSentSize;
 }
 
