@@ -85,12 +85,7 @@ trochilidae_flush();
 
 | # | Change | Why |
 |---|---|---|---|
-| P1 | ~~**Magic + version** `uint16 + uint16` in chunk header~~ | ~~`tr_network.c`~~ | ✅ Done |
 | P2 | **tv_sec → 64-bit `long`** | Avoid Y2038 overflow (time_t is 64-bit on modern systems) |
-| P3 | ~~**Payload length `uint32`** in chunk header (bytes 17-20)~~ | ~~`tr_network.c`~~ | ✅ Done (merged with P1, uses previously reserved padding) |
-| P4 | **CRC32C or Adler-32** at end of payload | Detect bit errors invisible to UDP checksum |
-| P5 | **Monotonic sequence number** `uint32` in chunk header | Detect lost datagrams; order requests from a single agent |
-| P6 | ~~**Drop reserved padding**~~ | ~~`tr_network.c`~~ | ✅ Not needed — padding reused for P1+P3 |
 
 ### 🔴 Stability & Scalability (code)
 

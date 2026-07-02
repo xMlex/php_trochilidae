@@ -2,6 +2,8 @@
 Check timer functionality
 --SKIPIF--
 <?php if (!extension_loaded("trochilidae")) print "skip"; ?>
+--INI--
+trochilidae.server_list=localhost
 --FILE--
 <?php
 trochilidae_set_tag("controller", "testController");
