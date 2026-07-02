@@ -75,10 +75,39 @@ E2E tests verify that the extension correctly sends binary UDP packets (chunked 
     rm -f "$UDP_LOG"
     ```
 
+4.  **Multi-chunk E2E test** (verifies chunking with small `chunk_size`):
+
+    Use `ini_set()` — setting `chunk_size` before `server_list` is required (see known bug below):
+    ```bash
+    UDP_PORT=30009
+    UDP_LOG=$(mktemp)
+    php -d extension=modules/trochilidae.so tests/udp_test_server.php \
+      --port=$UDP_PORT --timeout=3 --verbose > "$UDP_LOG" 2>&1 &
+    UDP_PID=$!
+    sleep 0.5
+    php -d extension=modules/trochilidae.so \
+      -r '
+    ini_set("trochilidae.chunk_size", 120);
+    ini_set("trochilidae.server_list", "127.0.0.1:'$UDP_PORT'");
+    for ($i = 0; $i < 50; $i++) {
+        trochilidae_set_tag("k$i", str_repeat("x", 25));
+    }
+    trochilidae_flush();
+    '
+    sleep 0.8
+    kill $UDP_PID 2>/dev/null; wait $UDP_PID 2>/dev/null || true
+    chunks=$(grep -c "Received chunk" "$UDP_LOG")
+    echo "Chunks: $chunks"
+    grep -q "All chunks received" "$UDP_LOG" && echo "MULTI-CHUNK PASS" || echo "FAIL"
+    rm -f "$UDP_LOG"
+    ```
+    Expected: ~21 chunks (99 bytes payload each with `chunk_size=120`, since `CHUNK_HEADER_SIZE=21`).
+
 **Key points:**
 - Tests that run with a real `trochilidae.server_list` setting emit UDP packets — those packets go to the configured server.
 - For isolated .phpt tests that don't need a server, set `trochilidae.server_list=localhost` (the packets will be sent but never arrive, which is harmless).
 - For full protocol validation, use the UDP test server as shown above.
+- **Known bug**: `trochilidae.chunk_size` and `trochilidae.server_list` cannot both be set via `-d` flags — the INI handler for `server_list` fires before `chunk_size` is applied, so collectors always get the default `chunk_size=65507`. Always use `ini_set()` for both when testing small chunk sizes, with `chunk_size` set **before** `server_list`.
 
 ## Stubs
 - `tests/stubs/php.h`: Minimal stub for `emalloc`/`erealloc`/`efree`/`estrdup` and `zend_resource` — used by `tr_internal_test.c` to compile without the real PHP headers.

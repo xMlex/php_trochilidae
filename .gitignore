@@ -19,8 +19,8 @@
 !/trochilidae
 !package.xml
 !Dockerfile
-!.opencode
 !/docs
+!AGENTS.md
 
 !/trochilidae/compat.h
 !/tests/install_test.sh
