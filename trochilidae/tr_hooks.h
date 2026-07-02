@@ -1,7 +1,7 @@
 #ifndef PHP_TROCHILIDAE_HOOKS_H
 #define PHP_TROCHILIDAE_HOOKS_H
 
-#include "php.h"
+#include "trochilidae/compat.h"
 #include "trochilidae/tr_array.h"
 
 #define TR_MAX_HOOKS 64

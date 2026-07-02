@@ -4,14 +4,10 @@
 #include <stdlib.h>
 #include <time.h>
 
-/* This test is compiled WITHOUT real PHP headers.
-   Instead we use tests/stubs/php.h which provides malloc-based
-   substitutes for emalloc/erealloc/efree/estrdup and a minimal
-   zend_resource definition.  This lets us unit-test the internal
-   C code (tr_array, tr_timer) without booting PHP. */
+/* Standalone unit test — compiled with -DTROCHILIDAE_STANDALONE.
+   compat.h provides malloc-based stubs for emalloc/efree/estrdup. */
 
-/* Include the actual source-under-test.
-   The stub php.h intercepts #include "php.h" before the real one. */
+/* Include the actual source-under-test. */
 #include "trochilidae/tr_array.h"
 #include "trochilidae/tr_timer.h"
 

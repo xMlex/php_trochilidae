@@ -2,7 +2,7 @@
 // Created by mlex on 09.12.2024.
 //
 
-#include "php.h"
+#include "trochilidae/compat.h"
 #include "tr_array.h"
 
 

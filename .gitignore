@@ -22,5 +22,5 @@
 !.opencode
 !/docs
 
-!/tests/stubs/php.h
+!/trochilidae/compat.h
 !/tests/install_test.sh

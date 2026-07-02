@@ -2,7 +2,8 @@
 // Created by xMlex on 13.09.2021.
 //
 
-#include "php.h"
+#include "trochilidae/compat.h"
+#include <errno.h>
 #include "trochilidae/tr_network.h"
 
 DomainResolveCacheEntry domain_resolve_cache[PHP_TROCHILIDAE_COLLECTORS_MAX];
