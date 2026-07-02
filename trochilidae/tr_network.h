@@ -38,6 +38,7 @@
 #define MAX_CHUNK_SIZE 65507   // Размер данных в одном UDP-пакете (идеал - 1400 байт)
 #define MAX_CHUNKS 256        // Максимальное количество чанков
 #define MIN_COMPRESSION_SIZE 2048 // Минимальный размер для сжатия данных
+#define PHP_TROCHILIDAE_SO_SNDBUF_SIZE 262144  // 256KB
 
 typedef struct {
     uLong response_http_size;

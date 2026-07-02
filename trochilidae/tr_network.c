@@ -168,6 +168,12 @@ extern bool tr_client_create(TrClient *client) {
         fprintf(stderr, "tr_client_create: socket creation failed\n");
         return false;
     }
+
+    int sndbuf = PHP_TROCHILIDAE_SO_SNDBUF_SIZE;
+    if (setsockopt(client->socketFd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf)) < 0) {
+        fprintf(stderr, "[tr_client_create] setsockopt SO_SNDBUF failed");
+    }
+
     if (!tr_client_set_addr_info(client)) {
         return false;
     }
@@ -253,10 +259,6 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
 
     const uint64_t packetId = generate_random_ulong();
     //fprintf(stderr, "[tr-send_chunks] packetId %llu, chunks: %d\n", packetId, total_chunks);
-
-    if (setsockopt(client->socketFd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) < 0) {
-        perror("[tr-send_chunks] setsockopt SO_SNDBUF failed");
-    }
 
     ssize_t totalSentSize = 0;
     unsigned short i = 0;
