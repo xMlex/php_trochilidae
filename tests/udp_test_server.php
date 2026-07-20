@@ -123,12 +123,16 @@ class PacketParser {
 
     public function parse(): array {
         $this->result['request_start_time'] = $this->r->readTimeval();
+        $this->assertTimevalUsecRange('request_start_time', $this->result['request_start_time']);
         $this->result['mode_type'] = $this->r->readByte();
         $this->result['request_method'] = $this->r->readByte();
         $this->result['mem_peak_usage'] = $this->r->readLong();
         $this->result['execution_time'] = $this->r->readTimeval();
+        $this->assertTimevalUsecRange('execution_time', $this->result['execution_time']);
         $this->result['cpu_user_time'] = $this->r->readTimeval();
+        $this->assertTimevalUsecRange('cpu_user_time', $this->result['cpu_user_time']);
         $this->result['cpu_system_time'] = $this->r->readTimeval();
+        $this->assertTimevalUsecRange('cpu_system_time', $this->result['cpu_system_time']);
         $this->result['response_http_size'] = $this->r->readLong();
         $this->result['response_code'] = $this->r->readWord();
 
@@ -169,6 +173,12 @@ class PacketParser {
 
         $this->result['_unparsed_bytes'] = $this->r->remaining();
         return $this->result;
+    }
+
+    private function assertTimevalUsecRange(string $field, array $timeval): void {
+        if ($timeval['usec'] < 0 || $timeval['usec'] > 999999) {
+            throw new \RuntimeException("Invalid timeval usec in {$field}: {$timeval['usec']}");
+        }
     }
 }
 

@@ -38,7 +38,7 @@ All multi-byte integers are **little-endian** (native x86_64 byte order via `mem
 | `word` | 4 | `uint32_t` | Unsigned 32-bit LE |
 | `long` | 8 | `uint64_t` | Unsigned 64-bit LE |
 | `tv` | 8 | `struct timeval` | `word(tv_sec)` + `word(tv_usec)` |
-| `string` | 2 + N | `char[]` | `short(length)` + N raw bytes (no NUL terminator sent) |
+| `string` | 4 + N | `char[]` | `word(length)` + N raw bytes (no NUL terminator sent) |
 
 ## Payload Layout
 

@@ -224,7 +224,7 @@ extern void tr_client_destroy(TrClient *client) {
 }
 
 int tr_client_set_addr_info(TrClient *client) {
-    if (strcmp(client->host, "") == 0) {
+    if (client->host == NULL || strcmp(client->host, "") == 0) {
         php_error_docref(NULL, E_WARNING, "tr_client_set_addr_info: not set client->host");
         return false;
     }
