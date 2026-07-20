@@ -197,6 +197,8 @@ extern bool tr_client_create(TrClient *client) {
     fcntl(client->socketFd, F_SETFL, flags | O_NONBLOCK);
 
     if (!tr_client_set_addr_info(client)) {
+        close(client->socketFd);
+        client->socketFd = -1;
         return false;
     }
     client->initialized = true;
@@ -213,6 +215,7 @@ extern void tr_client_destroy(TrClient *client) {
     client->initialized = false;
     if (client->socketFd >= 0) {
         close(client->socketFd);
+        client->socketFd = -1;
     }
     if (client->host){
         free(client->host);
@@ -262,11 +265,11 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         return -1;
     }
 
-    const size_t chunk_size = client->chunk_size - CHUNK_HEADER_SIZE;
-    if (chunk_size <= 0) {
+    if (client->chunk_size <= CHUNK_HEADER_SIZE) {
         php_error_docref(NULL, E_WARNING, "[tr-send_chunks] chunk_size small, need > %d", CHUNK_HEADER_SIZE);
         return -1;
     }
+    const size_t chunk_size = client->chunk_size - CHUNK_HEADER_SIZE;
     if (client->chunk_size > MAX_CHUNK_SIZE) {
         php_error_docref(NULL, E_WARNING, "[tr-send_chunks] Chunk size too large(%zu), max: %d", chunk_size, MAX_CHUNK_SIZE);
         return -1;
@@ -317,9 +320,12 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
         if (sent < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 client->drops++;
-                continue;
+                php_error_docref(NULL, E_NOTICE, "[tr-send_chunks] dropped chunk due to EAGAIN/EWOULDBLOCK");
+                free(packet);
+                return -1;
             }
             php_error_docref(NULL, E_WARNING, "[tr-send_chunks] sendto error: %s", strerror(errno));
+            free(packet);
             return -1;
         }
         totalSentSize += sent;

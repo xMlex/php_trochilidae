@@ -337,9 +337,9 @@ static int send_data() {
 
     // init clients
     for (int i = 0; i < collector_count; i++) {
-        tr_client_refresh_server(&TR_G(collectors)[i]);
-
-        //printf("send_data: %zu to %s:%d\n", sizeMsg, TR_G(collectors)[i].host, TR_G(collectors)[i].port);
+        if (!TR_G(collectors)[i].initialized || TR_G(collectors)[i].host == NULL) {
+            continue;
+        }
 
         const ssize_t cnt = tr_client_send(&TR_G(collectors)[i], TR_G(msg).data, sizeMsg);
         if (cnt == -1) {
@@ -362,6 +362,9 @@ static int send_data() {
 
 static void php_trochilidae_ctor_globals(zend_trochilidae_globals *globals) {
     memset(globals, 0, sizeof(*globals));
+    for (int i = 0; i < PHP_TROCHILIDAE_COLLECTORS_MAX; ++i) {
+        globals->collectors[i].socketFd = -1;
+    }
     gethostname(globals->hostName, sizeof(globals->hostName));
 }
 
