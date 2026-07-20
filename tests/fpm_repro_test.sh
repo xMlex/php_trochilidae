@@ -85,7 +85,7 @@ cleanup() {
   fi
   wait "${UDP_PID:-0}" 2>/dev/null || true
   if [ "$KEEP_TMP_DIR" != "1" ]; then
-    rm -rf "$TMP_DIR"
+    rm -rf "$TMP_DIR" || true
   else
     echo "TMP_DIR=$TMP_DIR"
   fi
