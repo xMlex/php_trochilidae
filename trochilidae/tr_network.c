@@ -194,7 +194,15 @@ extern bool tr_client_create(TrClient *client) {
     }
 
     int flags = fcntl(client->socketFd, F_GETFL, 0);
-    fcntl(client->socketFd, F_SETFL, flags | O_NONBLOCK);
+    fcntl(client->socketFd, F_SETFL, flags & ~O_NONBLOCK);
+
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 100000;
+
+    if (setsockopt(client->socketFd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) < 0) {
+        php_error_docref(NULL, E_WARNING, "[tr_client_create] setsockopt SO_SNDTIMEO failed");
+    }
 
     if (!tr_client_set_addr_info(client)) {
         close(client->socketFd);

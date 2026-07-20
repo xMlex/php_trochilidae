@@ -32,6 +32,21 @@ static void trim_tail(char *p) {
     p[len] = '\0';
 }
 
+static zval *tr_hash_str_find_ci(HashTable *ht, const char *name) {
+    size_t len = strlen(name);
+    zval *found = zend_hash_str_find(ht, name, len);
+    if (found != NULL) {
+        return found;
+    }
+
+    char *lower_name = estrndup(name, len);
+    zend_str_tolower(lower_name, len);
+    found = zend_hash_str_find(ht, lower_name, len);
+    efree(lower_name);
+
+    return found;
+}
+
 void tr_hooks_lazy_attach(void) {
     if (TR_G(hooks_attached)) return;
     TR_G(hooks_attached) = true;
@@ -65,6 +80,7 @@ void tr_hooks_lazy_attach(void) {
             char *method = sep + (sep[1] == '>' ? 2 : (sep[1] == ':' ? 2 : 1));
             trim_tail(p);
             method = (char *)skip_spaces(method);
+            trim_tail(method);
             if (*p && *method) {
                 e->type = TR_HOOK_METHOD;
                 strlcpy(e->class_name, p, sizeof(e->class_name));
@@ -85,13 +101,13 @@ void tr_hooks_lazy_attach(void) {
 
         zend_function *fe = NULL;
         if (e->type == TR_HOOK_FUNCTION) {
-            zval *tmp = zend_hash_str_find(EG(function_table), e->func_name, strlen(e->func_name));
+            zval *tmp = tr_hash_str_find_ci(EG(function_table), e->func_name);
             if (tmp) fe = Z_PTR_P(tmp);
         } else {
-            zval *tmp = zend_hash_str_find(CG(class_table), e->class_name, strlen(e->class_name));
+            zval *tmp = tr_hash_str_find_ci(CG(class_table), e->class_name);
             if (tmp) {
                 zend_class_entry *ce = Z_PTR_P(tmp);
-                zval *m = zend_hash_str_find(&ce->function_table, e->func_name, strlen(e->func_name));
+                zval *m = tr_hash_str_find_ci(&ce->function_table, e->func_name);
                 if (m) fe = Z_PTR_P(m);
             }
         }
@@ -157,12 +173,12 @@ static void build_hook_name(TrHookEntry *e, char *buf, size_t bufsz) {
 void tr_hooks_serialize(struct tr_array *msg) {
     uint32_t count = 0;
     for (uint32_t i = 0; i < TR_G(hook_count); i++) {
-        if (TR_G(hooks)[i].zend_func) count++;
+        if (TR_G(hooks)[i].zend_func && TR_G(hooks)[i].call_count > 0) count++;
     }
     tr_array_write_short(msg, &count);
 
     for (uint32_t i = 0; i < TR_G(hook_count); i++) {
-        if (!TR_G(hooks)[i].zend_func) continue;
+        if (!TR_G(hooks)[i].zend_func || TR_G(hooks)[i].call_count == 0) continue;
         char name[512];
         build_hook_name(&TR_G(hooks)[i], name, sizeof(name));
         tr_array_write_string(msg, name);

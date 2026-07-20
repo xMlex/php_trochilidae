@@ -171,6 +171,20 @@ class PacketParser {
             ];
         }
 
+        // hooks
+        $hookCount = $this->r->readShort();
+        $this->result['hooks'] = [];
+        for ($i = 0; $i < $hookCount; $i++) {
+            $name = $this->r->readString();
+            $callCount = $this->r->readLong();
+            $totalTime = $this->r->readTimeval();
+            $this->assertTimevalUsecRange("hooks[$name].total_time", $totalTime);
+            $this->result['hooks'][$name] = [
+                'call_count' => $callCount,
+                'total_time' => $totalTime,
+            ];
+        }
+
         $this->result['_unparsed_bytes'] = $this->r->remaining();
         return $this->result;
     }
@@ -221,6 +235,7 @@ function printResult(array $result, int $totalBytes): void {
     echo "argv (" . count($result['argv']) . "):       " . (empty($result['argv']) ? '(none)' : implode(', ', $result['argv'])) . "\n";
     echo "tags (" . count($result['tags']) . "):       " . (empty($result['tags']) ? '(none)' : json_encode($result['tags'])) . "\n";
     echo "timers (" . count($result['timers']) . "):    " . (empty($result['timers']) ? '(none)' : json_encode($result['timers'])) . "\n";
+    echo "hooks (" . count($result['hooks']) . "):     " . (empty($result['hooks']) ? '(none)' : json_encode($result['hooks'])) . "\n";
     echo "total bytes:        $totalBytes (unparsed: {$result['_unparsed_bytes']})\n";
     echo "========================\n";
 }

@@ -184,7 +184,7 @@ PHP_INI_BEGIN()
                         trochilidae_globals)
     STD_PHP_INI_ENTRY("trochilidae.server_list", NULL, PHP_INI_ALL, onUpdateServerList, server_list,
                       zend_trochilidae_globals, trochilidae_globals)
-    STD_PHP_INI_ENTRY("trochilidae.hook_list", "", PHP_INI_ALL, OnUpdateString, hook_list,
+    STD_PHP_INI_ENTRY("trochilidae.hook_list", "SoapClient->__soapCall,curl_exec,curl_multi_exec,file_get_contents,file_put_contents", PHP_INI_ALL, OnUpdateString, hook_list,
                       zend_trochilidae_globals, trochilidae_globals)
     STD_PHP_INI_BOOLEAN("trochilidae.debug", "0", PHP_INI_ALL, OnUpdateBool, debug,
                         zend_trochilidae_globals, trochilidae_globals)
