@@ -40,6 +40,7 @@ ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
     zval tags;
     zval timers;
     unsigned long bytesSend;
+    unsigned long problematicSends;
     unsigned long requestCount;
 ZEND_END_MODULE_GLOBALS(trochilidae)
 

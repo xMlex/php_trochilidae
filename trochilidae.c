@@ -367,6 +367,7 @@ static int send_data() {
 
         const ssize_t cnt = tr_client_send(&TR_G(collectors)[i], TR_G(msg).data, sizeMsg);
         if (cnt == -1) {
+            TR_G(problematicSends)++;
             char *errorBuf = strerror(errno);
             php_error_docref(NULL, E_NOTICE,
                              "[trochilidae] tr_net_send: %zu - %s,  address: %s:%i",
@@ -423,6 +424,12 @@ static PHP_MINFO_FUNCTION(trochilidae) {
     }
     snprintf(bufName, sizeof(bufName), "%lu", totalDrops);
     php_info_print_table_row(2, "Dropped packets", bufName);
+
+    const unsigned long avgProblematic = TR_G(requestCount) > 0
+                                         ? (TR_G(problematicSends) / TR_G(requestCount))
+                                         : 0;
+    snprintf(bufName, sizeof(bufName), "%lu AVG: %lu", TR_G(problematicSends), avgProblematic);
+    php_info_print_table_row(2, "Problematic sends", bufName);
 
     for (int i = 0; i < collector_count; ++i) {
         if (!TR_G(collectors)[i].initialized) {
