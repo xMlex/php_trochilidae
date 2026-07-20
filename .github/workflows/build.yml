@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install build dependencies
-        run: apk add --no-cache $PHPIZE_DEPS linux-headers
+        run: apk add --no-cache $PHPIZE_DEPS linux-headers bash fcgi ripgrep
 
       - name: phpize
         run: phpize
@@ -73,3 +73,5 @@ jobs:
         run: gcc -I. -DTROCHILIDAE_STANDALONE -DHAVE_CONFIG_H -g -O0 -Wall tests/tr_internal_test.c -o tests/tr_internal_test -lm
       - name: Run internal unit tests
         run: ./tests/tr_internal_test
+      - name: Run FPM repro test
+        run: bash tests/fpm_repro_test.sh

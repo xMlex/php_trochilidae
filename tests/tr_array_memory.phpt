@@ -1,13 +1,24 @@
 --TEST--
-Check tr_array functionality with new memory allocation
+Check tr_array growth and repeated flush/reset cycles
 --SKIPIF--
 <?php if (!extension_loaded("trochilidae")) print "skip"; ?>
+--INI--
+trochilidae.server_list=localhost
 --FILE--
 <?php
-// Since we don't have a direct PHP-exposed API for tr_array yet,
-// we rely on the extension loading without errors as a basic health check.
-// In a real scenario, we would use a test-specific PHP function to trigger tr_array usage.
-echo "Extension loaded successfully.\n";
+$ok = true;
+
+for ($cycle = 0; $cycle < 8; $cycle++) {
+    trochilidae_reset();
+    for ($i = 0; $i < 80; $i++) {
+        trochilidae_set_tag("k{$cycle}_{$i}", str_repeat("x", 48));
+    }
+    trochilidae_timer_start("memory");
+    trochilidae_timer_stop("memory");
+    $ok = $ok && trochilidae_flush();
+}
+
+echo $ok ? "array stress ok\n" : "array stress fail\n";
 ?>
 --EXPECT--
-Extension loaded successfully.
+array stress ok

@@ -24,6 +24,7 @@
 ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
     bool enabled;
     bool flashed;
+    bool in_send_data;
     bool modeCli;
     zend_long chunk_size;
     char *server_list;

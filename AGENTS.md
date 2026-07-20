@@ -11,6 +11,7 @@ This project is a C-based PHP extension for metrics collection.
     - `utils.c/h`: Helper functions and utility macros.
 - `docs/protocol.md`: Wire format specification for the UDP protocol.
 - `tests/`: Contains `.phpt` files for integration testing.
+- `.github/workflows/build.yml` build and run tests CI
 
 ## Core Conventions
 - **Naming:** 
@@ -39,6 +40,12 @@ This project is a C-based PHP extension for metrics collection.
 5.  **C unit tests (internal — tr_array, tr_timer):**
     `gcc -I. -Itests/stubs -DHAVE_CONFIG_H -g -O0 tests/tr_internal_test.c -o tests/tr_internal_test -lm && ./tests/tr_internal_test`
     *Note:* These use `tests/stubs/php.h` to mock the Zend API outside of PHP context.
+
+6.  **Docker FPM repro test** (recommended for FPM crash validation):
+    `tests/run_fpm_repro_in_docker.sh`
+    - Builds extension inside `php:8.2-fpm-bookworm`.
+    - Runs `.phpt` tests and then `tests/fpm_repro_test.sh` in FPM mode.
+    - Expected success output includes: `FPM repro test passed`.
 
 ### E2E Tests (UDP protocol validation)
 
@@ -108,6 +115,23 @@ E2E tests verify that the extension correctly sends binary UDP packets (chunked 
 - For isolated .phpt tests that don't need a server, set `trochilidae.server_list=localhost` (the packets will be sent but never arrive, which is harmless).
 - For full protocol validation, use the UDP test server as shown above.
 - **Known bug**: `trochilidae.chunk_size` and `trochilidae.server_list` cannot both be set via `-d` flags — the INI handler for `server_list` fires before `chunk_size` is applied, so collectors always get the default `chunk_size=65507`. Always use `ini_set()` for both when testing small chunk sizes, with `chunk_size` set **before** `server_list`.
+
+### FPM Repro Scripts (brief)
+
+- `tests/fpm_repro_test.sh` — launches local php-fpm + UDP server, sends multiple FastCGI requests, fails on crash signatures (`zend_mm_heap corrupted`, `SIGABRT`, `SIGSEGV`) or UDP absence.
+- `tests/fpm_repro_request.php` — request script with tag/timer activity and `$_SERVER` mutations (main FPM stress scenario).
+- `tests/fpm_min_request.php` — minimal control request script (`echo` only).
+
+Quick usage:
+
+```bash
+# full run (build + phpt + fpm repro) in Docker
+tests/run_fpm_repro_in_docker.sh
+
+# run only FPM repro in container with minimal request script
+docker run --rm -e REQUEST_SCRIPT=/work/tests/fpm_min_request.php \
+  trochilidae-fpm-repro:local bash -lc '/work/tests/fpm_repro_test.sh'
+```
 
 ## Stubs
 - `tests/stubs/php.h`: Minimal stub for `emalloc`/`erealloc`/`efree`/`estrdup` and `zend_resource` — used by `tr_internal_test.c` to compile without the real PHP headers.
