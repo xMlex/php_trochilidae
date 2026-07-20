@@ -14,7 +14,7 @@ typedef struct {
     char *name;
     int nameLen;
     struct timeval executionTime, totalExecutionTime;
-    uint startCount, stopCount;
+    unsigned int startCount, stopCount;
     // php
     zend_resource *resource;
 } TrTimer;
