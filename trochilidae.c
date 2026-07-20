@@ -294,7 +294,11 @@ static int send_data() {
             zval *val;
             // Итерация по аргументам
             ZEND_HASH_FOREACH_VAL(Z_ARR_P(argvList), val) {
-                tr_array_write_string(&TR_G(msg), Z_STRVAL_P(val));
+                if (Z_TYPE_P(val) == IS_STRING) {
+                    tr_array_write_string(&TR_G(msg), Z_STRVAL_P(val));
+                } else {
+                    tr_array_write_string(&TR_G(msg), NULL);
+                }
             } ZEND_HASH_FOREACH_END();
         }
     } else {
@@ -381,7 +385,8 @@ static PHP_MINFO_FUNCTION(trochilidae) {
     snprintf(bufName, sizeof(bufName), "%lu", TR_G(requestCount));
     php_info_print_table_row(2, "Requests", bufName);
 
-    snprintf(bufName, sizeof(bufName), "%lu AVG: %lu", TR_G(bytesSend), TR_G(bytesSend) / TR_G(requestCount));
+    const unsigned long avgBytes = TR_G(requestCount) > 0 ? (TR_G(bytesSend) / TR_G(requestCount)) : 0;
+    snprintf(bufName, sizeof(bufName), "%lu AVG: %lu", TR_G(bytesSend), avgBytes);
     php_info_print_table_row(2, "Bytes send", bufName);
 
     snprintf(bufName, sizeof(bufName), "%d", *tr_network_get_domain_resolve_cache_size());
@@ -509,13 +514,13 @@ static inline struct timeval tr_fetch_global_var_tv(const char *name) {
     if (zv && Z_TYPE_P(zv) == IS_DOUBLE) {
         double time_float = Z_DVAL_P(zv);
         tv.tv_sec = (time_t) time_float;
-        tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6 * 1000);
+        tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6);
     } else if (zv && Z_TYPE_P(zv) == IS_STRING) {
         char *endptr;
         double time_float = strtod(Z_STRVAL_P(zv), &endptr);
         if (*endptr == '\0') {
             tv.tv_sec = (time_t) time_float;
-            tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6 * 1000);
+            tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6);
         } else {
             php_error_docref(NULL, E_NOTICE, "[tr] incorrect string val in _SERVER[%s] variable", name);
         }
