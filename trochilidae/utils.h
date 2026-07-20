@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/time.h>
-#include <unistd.h>
 
 #define PHP_TROCHILIDAE_COLLECTORS_MAX 10
 
