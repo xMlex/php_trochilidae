@@ -24,6 +24,7 @@ typedef struct {
 } TrHookEntry;
 
 void tr_hooks_lazy_attach(void);
+void tr_hooks_detach(void);
 void tr_hooks_reset(void);
 void tr_hooks_serialize(struct tr_array *msg);
 

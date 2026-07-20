@@ -124,6 +124,21 @@ void tr_hooks_lazy_attach(void) {
     efree(dup);
 }
 
+void tr_hooks_detach(void) {
+    for (uint32_t i = 0; i < TR_G(hook_count); i++) {
+        if (!TR_G(hooks)[i].zend_func || !TR_G(hooks)[i].original_handler) {
+            continue;
+        }
+        ((zend_internal_function *)TR_G(hooks)[i].zend_func)->handler = TR_G(hooks)[i].original_handler;
+        TR_G(hooks)[i].zend_func = NULL;
+        TR_G(hooks)[i].original_handler = NULL;
+        TR_G(hooks)[i].call_count = 0;
+        TR_G(hooks)[i].total_time = (struct timeval){0, 0};
+    }
+    TR_G(hook_count) = 0;
+    TR_G(hooks_attached) = false;
+}
+
 void tr_hooks_reset(void) {
     for (uint32_t i = 0; i < TR_G(hook_count); i++) {
         TR_G(hooks)[i].call_count = 0;

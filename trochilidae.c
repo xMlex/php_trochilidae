@@ -203,6 +203,10 @@ static PHP_MINIT_FUNCTION(trochilidae) {
 }
 
 static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
+    tr_hooks_detach();
+    if (sapi_old_ub_write != NULL) {
+        sapi_module.ub_write = sapi_old_ub_write;
+    }
     for (int i = 0; i < PHP_TROCHILIDAE_COLLECTORS_MAX; ++i) {
         tr_client_destroy(&TR_G(collectors[i]));
     }
