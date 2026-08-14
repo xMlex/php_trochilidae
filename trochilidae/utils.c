@@ -4,6 +4,7 @@
 
 #include "trochilidae/utils.h"
 #include <inttypes.h>
+#include <stdbool.h>
 #include <unistd.h>
 
 extern void d2tv(double x, struct timeval *tv) {

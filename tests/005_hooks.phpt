@@ -73,34 +73,25 @@ if (!$parsed) {
     die("packet was not parsed\n" . $log);
 }
 
-if (!preg_match('/^hooks \(\d+\):\s+(.+)$/m', $log, $m)) {
+if (!preg_match('/^hooks \((\d+)\):\s+(.+)$/m', $log, $m)) {
     die("hooks line not found\n" . $log);
 }
 
-$hooks = json_decode($m[1], true);
-if (!is_array($hooks)) {
-    die("failed to decode hooks json: " . $m[1] . "\n");
+$hookCount = (int) $m[1];
+$hooksLine = trim($m[2]);
+
+if ($hookCount !== 2 || $hooksLine === '(none)') {
+    die("unexpected hook count: $hookCount\n" . $log);
 }
 
-$hookNames = array_keys($hooks);
-sort($hookNames);
-
-$expected = ['DateTimeImmutable->format', 'date'];
-sort($expected);
-
-if ($hookNames !== $expected) {
-    die("unexpected hooks: " . json_encode($hookNames) . "\n" . $log);
+if (!preg_match('/"date"\s*:\s*\{"call_count"\s*:\s*([1-9]\d*)/', $hooksLine)) {
+    die("date hook missing or zero calls\n" . $log);
 }
-
-if (($hooks['date']['call_count'] ?? 0) < 1) {
-    die("date call_count is invalid\n");
+if (!preg_match('/"DateTimeImmutable->format"\s*:\s*\{"call_count"\s*:\s*([1-9]\d*)/', $hooksLine)) {
+    die("DateTimeImmutable->format hook missing or zero calls\n" . $log);
 }
-if (($hooks['DateTimeImmutable->format']['call_count'] ?? 0) < 1) {
-    die("DateTimeImmutable->format call_count is invalid\n");
-}
-
-if (isset($hooks['curl_exec']) || isset($hooks['DateTimeImmutable::format'])) {
-    die("unexpected non-called hook present\n");
+if (preg_match('/"curl_exec"/', $hooksLine) || preg_match('/"DateTimeImmutable::format"/', $hooksLine)) {
+    die("unexpected non-called hook present\n" . $log);
 }
 
 echo "OK\n";
