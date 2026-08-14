@@ -10,8 +10,6 @@ Check multi-chunk packet with small chunk_size
 //      ini_set("trochilidae.server_list", "127.0.0.1:30009");
 //   3. Check logs for "Received chunk X/21" and "All chunks received"
 //
-// Known bug: chunk_size and server_list must BOTH be set via ini_set(),
-//            NOT via -d flags. Setting chunk_size BEFORE server_list is required.
 ini_set("trochilidae.chunk_size", 120);
 ini_set("trochilidae.server_list", "127.0.0.1");
 

@@ -81,6 +81,20 @@ TrTimer *get_or_create_tr_timer(zend_string *timerName) {
     return timer;
 }
 
+static size_t tr_effective_chunk_size(void) {
+    if (TR_G(chunk_size) < CHUNK_HEADER_SIZE + 1 || (unsigned long)TR_G(chunk_size) > MAX_CHUNK_SIZE) {
+        return MAX_CHUNK_SIZE;
+    }
+    return (size_t)TR_G(chunk_size);
+}
+
+static void tr_apply_chunk_size_to_collectors(void) {
+    size_t cs = tr_effective_chunk_size();
+    for (int i = 0; i < collector_count; i++) {
+        TR_G(collectors)[i].chunk_size = cs;
+    }
+}
+
 void update_server_list() {
     int prev_count = collector_count;
     DomainPortEntry *pairs = parse_domain_port_pairs(TR_G(server_list), &collector_count);
@@ -109,11 +123,7 @@ void update_server_list() {
             free(TR_G(collectors)[i].host);
             TR_G(collectors)[i].host = NULL;
         }
-        if (TR_G(chunk_size) < CHUNK_HEADER_SIZE + 1 || (unsigned long)TR_G(chunk_size) > MAX_CHUNK_SIZE) {
-            TR_G(collectors)[i].chunk_size = MAX_CHUNK_SIZE;
-        } else {
-            TR_G(collectors)[i].chunk_size = (size_t)TR_G(chunk_size);
-        }
+        TR_G(collectors)[i].chunk_size = tr_effective_chunk_size();
     }
 
     free(pairs);
@@ -170,6 +180,15 @@ static const zend_function_entry functions[] = {
     PHP_FE_END
 };
 
+ZEND_INI_MH(onUpdateChunkSize) {
+    if (!new_value) {
+        return FAILURE;
+    }
+    TR_G(chunk_size) = zend_atol(new_value->val, new_value->len);
+    tr_apply_chunk_size_to_collectors();
+    return SUCCESS;
+}
+
 ZEND_INI_MH(onUpdateServerList) {
     if (!new_value) {
         return FAILURE;
@@ -182,14 +201,14 @@ ZEND_INI_MH(onUpdateServerList) {
 PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("trochilidae.enabled", "1", PHP_INI_ALL, OnUpdateBool, enabled, zend_trochilidae_globals,
                         trochilidae_globals)
+    STD_PHP_INI_ENTRY("trochilidae.chunk_size", "65507", PHP_INI_ALL, onUpdateChunkSize, chunk_size,
+                      zend_trochilidae_globals, trochilidae_globals)
     STD_PHP_INI_ENTRY("trochilidae.server_list", NULL, PHP_INI_ALL, onUpdateServerList, server_list,
                       zend_trochilidae_globals, trochilidae_globals)
     STD_PHP_INI_ENTRY("trochilidae.hook_list", "SoapClient->__soapCall,curl_exec,curl_multi_exec,file_get_contents,file_put_contents", PHP_INI_ALL, OnUpdateString, hook_list,
                       zend_trochilidae_globals, trochilidae_globals)
     STD_PHP_INI_BOOLEAN("trochilidae.debug", "0", PHP_INI_ALL, OnUpdateBool, debug,
                         zend_trochilidae_globals, trochilidae_globals)
-    STD_PHP_INI_ENTRY("trochilidae.chunk_size", "65507", PHP_INI_ALL, OnUpdateLong, chunk_size,
-                      zend_trochilidae_globals, trochilidae_globals)
 PHP_INI_END()
 
 static PHP_MINIT_FUNCTION(trochilidae) {

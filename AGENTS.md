@@ -27,7 +27,7 @@ This project is a C-based PHP extension for metrics collection.
 - **`trochilidae/tr_array.c`**, **`trochilidae/tr_timer.c`**, and **`trochilidae/tr_hooks.c`** use the **Zend allocator** (`emalloc`/`efree`/`estrdup`).
 - **`trochilidae.c`** uses **both**: data crossing the boundary with `tr_network.c` (`client->host`, `pairs`) uses system allocator to match; PHP-internal data (`request_id`) uses Zend allocator.
 - **Callers must match the callee's allocator**: if `parse_domain_port_pairs` allocates with `malloc`, the caller must free with `free` (not `efree`). Never mix allocators for the same pointer.
-- **Test stubs** (`tests/stubs/php.h`) map `emalloc → malloc`, `efree → free`, `estrdup → strdup` to allow internal test builds outside of PHP context.
+- **Test stubs** (`trochilidae/compat.h`): compile with `-DTROCHILIDAE_STANDALONE` to map `emalloc → malloc`, `efree → free`, `estrdup → strdup` for unit tests outside PHP.
 
 ## Build & Test Workflow
 1.  **Configuration:** `phpize && ./configure --enable-trochilidae`
@@ -36,14 +36,14 @@ This project is a C-based PHP extension for metrics collection.
     `php -d extension=modules/trochilidae.so run-tests.php -d extension=modules/trochilidae.so tests/`
     *Note:* The `-d extension=...` flag must be passed **both** to `run-tests.php` (so it propagates to child processes) and to the parent process for the skip checks.
 4.  **C unit tests (network):**
-    `gcc -I. -Itests/stubs -DHAVE_CONFIG_H -g -O0 tests/unit_test.c trochilidae/tr_network.c trochilidae/utils.c -o tests/unit_test -lm && ./tests/unit_test`
+    `gcc -I. -DTROCHILIDAE_STANDALONE -DHAVE_CONFIG_H -D_GNU_SOURCE -g -O0 tests/unit_test.c trochilidae/tr_network.c trochilidae/utils.c -o tests/unit_test -lm && ./tests/unit_test`
 5.  **C unit tests (internal — tr_array, tr_timer):**
-    `gcc -I. -Itests/stubs -DHAVE_CONFIG_H -g -O0 tests/tr_internal_test.c -o tests/tr_internal_test -lm && ./tests/tr_internal_test`
-    *Note:* These use `tests/stubs/php.h` to mock the Zend API outside of PHP context.
+    `gcc -I. -DTROCHILIDAE_STANDALONE -DHAVE_CONFIG_H -g -O0 -Wall tests/tr_internal_test.c -o tests/tr_internal_test -lm && ./tests/tr_internal_test`
+    *Note:* Requires `config.h` from `./configure`. Uses `trochilidae/compat.h` with `-DTROCHILIDAE_STANDALONE` instead of real PHP headers.
 
 6.  **Docker FPM repro test** (recommended for FPM crash validation):
     `tests/run_fpm_repro_in_docker.sh`
-    - Builds extension inside `php:8.2-fpm-bookworm`.
+    - Builds extension inside `php:8.5-fpm-alpine`.
     - Runs `.phpt` tests and then `tests/fpm_repro_test.sh` in FPM mode.
     - Expected success output includes: `FPM repro test passed`.
 
@@ -84,7 +84,6 @@ E2E tests verify that the extension correctly sends binary UDP packets (chunked 
 
 4.  **Multi-chunk E2E test** (verifies chunking with small `chunk_size`):
 
-    Use `ini_set()` — setting `chunk_size` before `server_list` is required (see known bug below):
     ```bash
     UDP_PORT=30009
     UDP_LOG=$(mktemp)
@@ -93,9 +92,9 @@ E2E tests verify that the extension correctly sends binary UDP packets (chunked 
     UDP_PID=$!
     sleep 0.5
     php -d extension=modules/trochilidae.so \
+      -d trochilidae.chunk_size=120 \
+      -d "trochilidae.server_list=127.0.0.1:$UDP_PORT" \
       -r '
-    ini_set("trochilidae.chunk_size", 120);
-    ini_set("trochilidae.server_list", "127.0.0.1:'$UDP_PORT'");
     for ($i = 0; $i < 50; $i++) {
         trochilidae_set_tag("k$i", str_repeat("x", 25));
     }
@@ -114,7 +113,6 @@ E2E tests verify that the extension correctly sends binary UDP packets (chunked 
 - Tests that run with a real `trochilidae.server_list` setting emit UDP packets — those packets go to the configured server.
 - For isolated .phpt tests that don't need a server, set `trochilidae.server_list=localhost` (the packets will be sent but never arrive, which is harmless).
 - For full protocol validation, use the UDP test server as shown above.
-- **Known bug**: `trochilidae.chunk_size` and `trochilidae.server_list` cannot both be set via `-d` flags — the INI handler for `server_list` fires before `chunk_size` is applied, so collectors always get the default `chunk_size=65507`. Always use `ini_set()` for both when testing small chunk sizes, with `chunk_size` set **before** `server_list`.
 
 ### FPM Repro Scripts (brief)
 
@@ -134,4 +132,4 @@ docker run --rm -e REQUEST_SCRIPT=/work/tests/fpm_min_request.php \
 ```
 
 ## Stubs
-- `tests/stubs/php.h`: Minimal stub for `emalloc`/`erealloc`/`efree`/`estrdup` and `zend_resource` — used by `tr_internal_test.c` to compile without the real PHP headers.
+- `trochilidae/compat.h`: Standalone stubs for `emalloc`/`erealloc`/`efree`/`estrdup` and minimal Zend types — used by `tr_internal_test.c` and `unit_test.c` when compiled with `-DTROCHILIDAE_STANDALONE`.
