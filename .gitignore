@@ -19,3 +19,8 @@
 !/trochilidae
 !package.xml
 !Dockerfile
+!/docs
+!AGENTS.md
+
+!/trochilidae/compat.h
+!/tests/install_test.sh

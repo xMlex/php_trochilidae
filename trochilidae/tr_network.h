@@ -7,10 +7,10 @@
 
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <netdb.h>
-#include <zend.h>
 #include <time.h>
 #include <stdbool.h>
 #include <arpa/inet.h>
@@ -39,6 +39,7 @@
 #define MAX_CHUNK_SIZE 65507   // Размер данных в одном UDP-пакете (идеал - 1400 байт)
 #define MAX_CHUNKS 256        // Максимальное количество чанков
 #define MIN_COMPRESSION_SIZE 2048 // Минимальный размер для сжатия данных
+#define PHP_TROCHILIDAE_SO_SNDBUF_SIZE 262144  // 256KB
 
 typedef struct {
     uLong response_http_size;
@@ -67,6 +68,7 @@ typedef struct {
     int port;
     size_t chunk_size;
     unsigned short chunk_count;
+    unsigned long drops;
 } TrClient;
 
 typedef struct {

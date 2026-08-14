@@ -10,6 +10,7 @@
 #include "SAPI.h"
 #include "php_trochilidae.h"
 #include "trochilidae_arginfo.h"
+#include "trochilidae/tr_hooks.h"
 
 static const zend_function_entry functions[];
 
@@ -20,6 +21,8 @@ size_t (*sapi_old_ub_write)(const char *str, size_t str_length);
 TrTimer *get_or_create_tr_timer(zend_string *timerName);
 
 void update_server_list();
+static void tr_cleanup_request_data_strings(void);
+static char *tr_dup_server_var(const char *name);
 
 #ifdef COMPILE_DL_TROCHILIDAE
 ZEND_GET_MODULE(trochilidae)
@@ -78,7 +81,22 @@ TrTimer *get_or_create_tr_timer(zend_string *timerName) {
     return timer;
 }
 
+static size_t tr_effective_chunk_size(void) {
+    if (TR_G(chunk_size) < CHUNK_HEADER_SIZE + 1 || (unsigned long)TR_G(chunk_size) > MAX_CHUNK_SIZE) {
+        return MAX_CHUNK_SIZE;
+    }
+    return (size_t)TR_G(chunk_size);
+}
+
+static void tr_apply_chunk_size_to_collectors(void) {
+    size_t cs = tr_effective_chunk_size();
+    for (int i = 0; i < collector_count; i++) {
+        TR_G(collectors)[i].chunk_size = cs;
+    }
+}
+
 void update_server_list() {
+    int prev_count = collector_count;
     DomainPortEntry *pairs = parse_domain_port_pairs(TR_G(server_list), &collector_count);
 
     // Ограничение количества collectors
@@ -86,23 +104,26 @@ void update_server_list() {
         ? PHP_TROCHILIDAE_COLLECTORS_MAX
         : collector_count;
 
-    // Предварительное освобождение старых клиентов
-    for (int i = 0; i < collector_count; i++) {
+    // Освобождение старых клиентов (включая те, что стали вне нового лимита)
+    int cleanup_count = prev_count > collector_count ? prev_count : collector_count;
+    for (int i = 0; i < cleanup_count; i++) {
         tr_client_destroy(&TR_G(collectors)[i]);
     }
 
     // Инициализация новых клиентов
     for (int i = 0; i < collector_count; i++) {
-        TR_G(collectors)[i].host = strdup(pairs[i].domain); // используем strdup для безопасного копирования строки
+        TR_G(collectors)[i].host = strdup(pairs[i].domain);
         if (TR_G(collectors)[i].host == NULL) {
-            continue; // Если не удалось выделить память для строки, пропускаем эту итерацию
+            continue;
         }
 
         TR_G(collectors)[i].port = pairs[i].port;
 
         if (!tr_client_init(&TR_G(collectors)[i])) {
-            free(TR_G(collectors)[i].host); // Если инициализация не удалась, освобождаем память
+            free(TR_G(collectors)[i].host);
+            TR_G(collectors)[i].host = NULL;
         }
+        TR_G(collectors)[i].chunk_size = tr_effective_chunk_size();
     }
 
     free(pairs);
@@ -159,6 +180,15 @@ static const zend_function_entry functions[] = {
     PHP_FE_END
 };
 
+ZEND_INI_MH(onUpdateChunkSize) {
+    if (!new_value) {
+        return FAILURE;
+    }
+    TR_G(chunk_size) = zend_atol(new_value->val, new_value->len);
+    tr_apply_chunk_size_to_collectors();
+    return SUCCESS;
+}
+
 ZEND_INI_MH(onUpdateServerList) {
     if (!new_value) {
         return FAILURE;
@@ -171,8 +201,14 @@ ZEND_INI_MH(onUpdateServerList) {
 PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("trochilidae.enabled", "1", PHP_INI_ALL, OnUpdateBool, enabled, zend_trochilidae_globals,
                         trochilidae_globals)
+    STD_PHP_INI_ENTRY("trochilidae.chunk_size", "65507", PHP_INI_ALL, onUpdateChunkSize, chunk_size,
+                      zend_trochilidae_globals, trochilidae_globals)
     STD_PHP_INI_ENTRY("trochilidae.server_list", NULL, PHP_INI_ALL, onUpdateServerList, server_list,
                       zend_trochilidae_globals, trochilidae_globals)
+    STD_PHP_INI_ENTRY("trochilidae.hook_list", "SoapClient->__soapCall,curl_exec,curl_multi_exec,file_get_contents,file_put_contents", PHP_INI_ALL, OnUpdateString, hook_list,
+                      zend_trochilidae_globals, trochilidae_globals)
+    STD_PHP_INI_BOOLEAN("trochilidae.debug", "0", PHP_INI_ALL, OnUpdateBool, debug,
+                        zend_trochilidae_globals, trochilidae_globals)
 PHP_INI_END()
 
 static PHP_MINIT_FUNCTION(trochilidae) {
@@ -188,6 +224,10 @@ static PHP_MINIT_FUNCTION(trochilidae) {
 }
 
 static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
+    tr_hooks_detach();
+    if (sapi_old_ub_write != NULL) {
+        sapi_module.ub_write = sapi_old_ub_write;
+    }
     for (int i = 0; i < PHP_TROCHILIDAE_COLLECTORS_MAX; ++i) {
         tr_client_destroy(&TR_G(collectors[i]));
     }
@@ -196,19 +236,38 @@ static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
 
 static PHP_RINIT_FUNCTION(trochilidae) {
     tr_reset();
+    tr_hooks_lazy_attach();
+    tr_hooks_reset();
     return SUCCESS;
 }
 
 static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
-     tr_flush();
+    tr_flush();
+    tr_cleanup_request_data_strings();
+    if (Z_TYPE(TR_G(tags)) == IS_ARRAY) {
+        zval_dtor(&TR_G(tags));
+        ZVAL_UNDEF(&TR_G(tags));
+    }
+    if (Z_TYPE(TR_G(timers)) == IS_ARRAY) {
+        zval_dtor(&TR_G(timers));
+        ZVAL_UNDEF(&TR_G(timers));
+    }
     return SUCCESS;
 }
 
 static int tr_reset() {
+    if (TR_G(in_send_data)) {
+        return FAILURE;
+    }
+
     TR_G(flashed) = false;
     collect_metrics_before_request();
-    zval_dtor(&TR_G(tags));
-    zval_dtor(&TR_G(timers));
+    if (Z_TYPE(TR_G(tags)) == IS_ARRAY) {
+        zval_dtor(&TR_G(tags));
+    }
+    if (Z_TYPE(TR_G(timers)) == IS_ARRAY) {
+        zval_dtor(&TR_G(timers));
+    }
     array_init(&TR_G(tags));
     array_init(&TR_G(timers));
     return SUCCESS;
@@ -225,6 +284,11 @@ static int tr_flush() {
 }
 
 static int send_data() {
+    if (TR_G(in_send_data)) {
+        return FAILURE;
+    }
+    TR_G(in_send_data) = true;
+
     collect_metrics_after_request();
 
     uint8_t modeType = PHP_TROCHILIDAE_MODE_CGI;
@@ -232,18 +296,14 @@ static int send_data() {
         modeType = PHP_TROCHILIDAE_MODE_CLI;
     }
 
-    char *request_domain;
-    if (TR_G(requestData).request_domain) {
-        request_domain = TR_G(requestData).request_domain;
-    } else {
-        request_domain = strdup(sapi_module.name);
+    const char *request_domain = TR_G(requestData).request_domain;
+    if (request_domain == NULL) {
+        request_domain = sapi_module.name;
     }
 
-    char *request_uri;
-    if (TR_G(requestData).request_uri) {
-        request_uri = TR_G(requestData).request_uri;
-    } else {
-        request_uri = strdup(sapi_module.name);
+    const char *request_uri = TR_G(requestData).request_uri;
+    if (request_uri == NULL) {
+        request_uri = sapi_module.name;
     }
 
     tr_array_init(&TR_G(msg), 0);
@@ -264,7 +324,7 @@ static int send_data() {
 
     //argv
     uint32_t argvCount = 0;
-    const zval *argvList = tr_fetch_global_var_ar(strdup("argv"));
+    const zval *argvList = tr_fetch_global_var_ar("argv");
     if (argvList) {
         argvCount = zend_array_count(Z_ARR_P(argvList));
         tr_array_write_short(&TR_G(msg), &argvCount); // count
@@ -273,7 +333,11 @@ static int send_data() {
             zval *val;
             // Итерация по аргументам
             ZEND_HASH_FOREACH_VAL(Z_ARR_P(argvList), val) {
-                tr_array_write_string(&TR_G(msg), Z_STRVAL_P(val));
+                if (Z_TYPE_P(val) == IS_STRING) {
+                    tr_array_write_string(&TR_G(msg), Z_STRVAL_P(val));
+                } else {
+                    tr_array_write_string(&TR_G(msg), NULL);
+                }
             } ZEND_HASH_FOREACH_END();
         }
     } else {
@@ -307,18 +371,22 @@ static int send_data() {
         ZEND_HASH_FOREACH_END();
     }
 
+    // hooks
+    tr_hooks_serialize(&TR_G(msg));
+
     const size_t sizeMsg = tr_array_get_size(&TR_G(msg));
 
     TR_G(bytesSend) += sizeMsg;
 
     // init clients
     for (int i = 0; i < collector_count; i++) {
-        tr_client_refresh_server(&TR_G(collectors)[i]);
-
-        //printf("send_data: %zu to %s:%d\n", sizeMsg, TR_G(collectors)[i].host, TR_G(collectors)[i].port);
+        if (!TR_G(collectors)[i].initialized || TR_G(collectors)[i].host == NULL) {
+            continue;
+        }
 
         const ssize_t cnt = tr_client_send(&TR_G(collectors)[i], TR_G(msg).data, sizeMsg);
         if (cnt == -1) {
+            TR_G(problematicSends)++;
             char *errorBuf = strerror(errno);
             php_error_docref(NULL, E_NOTICE,
                              "[trochilidae] tr_net_send: %zu - %s,  address: %s:%i",
@@ -329,16 +397,27 @@ static int send_data() {
 
     tr_array_free(&TR_G(msg));
 
+    TR_G(in_send_data) = false;
+
     return SUCCESS;
 
 }
 
 static void php_trochilidae_ctor_globals(zend_trochilidae_globals *globals) {
     memset(globals, 0, sizeof(*globals));
+    for (int i = 0; i < PHP_TROCHILIDAE_COLLECTORS_MAX; ++i) {
+        globals->collectors[i].socketFd = -1;
+    }
     gethostname(globals->hostName, sizeof(globals->hostName));
 }
 
 static void php_trochilidae_dtor_globals(zend_trochilidae_globals *globals) {
+    globals->requestData.request_id = NULL;
+    globals->requestData.request_uri = NULL;
+    globals->requestData.request_domain = NULL;
+    if (globals->msg.data) {
+        tr_array_free(&globals->msg);
+    }
 }
 
 static PHP_MINFO_FUNCTION(trochilidae) {
@@ -351,11 +430,25 @@ static PHP_MINFO_FUNCTION(trochilidae) {
     snprintf(bufName, sizeof(bufName), "%lu", TR_G(requestCount));
     php_info_print_table_row(2, "Requests", bufName);
 
-    snprintf(bufName, sizeof(bufName), "%lu AVG: %lu", TR_G(bytesSend), TR_G(bytesSend) / TR_G(requestCount));
+    const unsigned long avgBytes = TR_G(requestCount) > 0 ? (TR_G(bytesSend) / TR_G(requestCount)) : 0;
+    snprintf(bufName, sizeof(bufName), "%lu AVG: %lu", TR_G(bytesSend), avgBytes);
     php_info_print_table_row(2, "Bytes send", bufName);
 
     snprintf(bufName, sizeof(bufName), "%d", *tr_network_get_domain_resolve_cache_size());
     php_info_print_table_row(2, "DNS Resolve cache count:", bufName);
+
+    unsigned long totalDrops = 0;
+    for (int i = 0; i < collector_count; ++i) {
+        totalDrops += TR_G(collectors)[i].drops;
+    }
+    snprintf(bufName, sizeof(bufName), "%lu", totalDrops);
+    php_info_print_table_row(2, "Dropped packets", bufName);
+
+    const unsigned long avgProblematic = TR_G(requestCount) > 0
+                                         ? (TR_G(problematicSends) / TR_G(requestCount))
+                                         : 0;
+    snprintf(bufName, sizeof(bufName), "%lu AVG: %lu", TR_G(problematicSends), avgProblematic);
+    php_info_print_table_row(2, "Problematic sends", bufName);
 
     for (int i = 0; i < collector_count; ++i) {
         if (!TR_G(collectors)[i].initialized) {
@@ -396,18 +489,27 @@ static void collect_metrics_before_request() {
     TR_G(requestData).response_http_size = 0;
     if (TR_G(modeCli)) {
         TR_G(requestData).request_method = PHP_TROCHILIDAE_REQUEST_METHOD_NONE;
-        TR_G(requestData).request_uri = tr_fetch_global_var("SCRIPT_FILENAME");
-        TR_G(requestData).request_domain = tr_fetch_global_var("PWD");
+        TR_G(requestData).request_uri = tr_dup_server_var("SCRIPT_FILENAME");
+        TR_G(requestData).request_domain = tr_dup_server_var("PWD");
     } else {
         TR_G(requestData).request_method = tr_request_method_map(tr_fetch_global_var("REQUEST_METHOD"));
-        TR_G(requestData).request_uri = tr_fetch_global_var("REQUEST_URI");
-        TR_G(requestData).request_domain = tr_fetch_global_var("HTTP_HOST");
+        TR_G(requestData).request_uri = tr_dup_server_var("REQUEST_URI");
+        TR_G(requestData).request_domain = tr_dup_server_var("HTTP_HOST");
         if (TR_G(requestData).request_domain == NULL) {
-            TR_G(requestData).request_domain = tr_fetch_global_var("SERVER_NAME");
+            TR_G(requestData).request_domain = tr_dup_server_var("SERVER_NAME");
         }
     }
     TR_G(requestData).request_start_time = tr_fetch_global_var_tv("REQUEST_TIME_FLOAT");
-    TR_G(requestData).request_id = tr_fetch_global_var("HTTP_X_REQUEST_ID");
+
+    // request_id: для CLI генерируем, для HTTP берём из заголовка
+    if (TR_G(modeCli)) {
+        char buf[33];
+        snprintf(buf, sizeof(buf), "%016" PRIx64 "%016" PRIx64, generate_random_ulong(), generate_random_ulong());
+        TR_G(requestData).request_id = estrdup(buf);
+    } else {
+        char *header_id = tr_fetch_global_var("HTTP_X_REQUEST_ID");
+        TR_G(requestData).request_id = header_id ? estrdup(header_id) : NULL;
+    }
 }
 
 static void collect_metrics_after_request() {
@@ -430,10 +532,33 @@ static size_t sapi_ub_write_counter(const char *str, size_t length) {
 
 static inline char *tr_fetch_global_var(const char *name) {
     zval *tmp = tr_fetch_global_var_zval(name);
-    if (tmp) {
+    if (tmp && Z_TYPE_P(tmp) == IS_STRING) {
         return Z_STRVAL_P(tmp);
     }
     return NULL;
+}
+
+static void tr_cleanup_request_data_strings(void) {
+    if (TR_G(requestData).request_id) {
+        efree(TR_G(requestData).request_id);
+        TR_G(requestData).request_id = NULL;
+    }
+    if (TR_G(requestData).request_uri) {
+        efree(TR_G(requestData).request_uri);
+        TR_G(requestData).request_uri = NULL;
+    }
+    if (TR_G(requestData).request_domain) {
+        efree(TR_G(requestData).request_domain);
+        TR_G(requestData).request_domain = NULL;
+    }
+}
+
+static char *tr_dup_server_var(const char *name) {
+    const char *value = tr_fetch_global_var(name);
+    if (value == NULL) {
+        return NULL;
+    }
+    return estrdup(value);
 }
 
 static inline zval *tr_fetch_global_var_ar(const char *name) {
@@ -458,15 +583,15 @@ static inline struct timeval tr_fetch_global_var_tv(const char *name) {
     if (zv && Z_TYPE_P(zv) == IS_DOUBLE) {
         double time_float = Z_DVAL_P(zv);
         tv.tv_sec = (time_t) time_float;
-        tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6 * 1000);
+        tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6);
     } else if (zv && Z_TYPE_P(zv) == IS_STRING) {
         char *endptr;
         double time_float = strtod(Z_STRVAL_P(zv), &endptr);
         if (*endptr == '\0') {
             tv.tv_sec = (time_t) time_float;
-            tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6 * 1000);
+            tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6);
         } else {
-            fprintf(stderr, "[tr] incorrect string val in _SERVER[%s] variable\n", name);
+            php_error_docref(NULL, E_NOTICE, "[tr] incorrect string val in _SERVER[%s] variable", name);
         }
     }
     return tv;
