@@ -479,7 +479,7 @@ zend_module_entry trochilidae_module_entry = {
 };
 
 static void collect_metrics_before_request() {
-давай коммит    tr_cleanup_request_data_strings();
+    tr_cleanup_request_data_strings();
     TR_G(requestCount)++;
     struct rusage u;
     gettimeofday(&TR_G(requestData).executionTime, NULL);
