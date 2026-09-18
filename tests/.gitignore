@@ -1,0 +1,6 @@
+*
+!*.phpt
+!*.c
+!*.sh
+!*.php
+!stubs

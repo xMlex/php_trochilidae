@@ -24,6 +24,6 @@ typedef unsigned char byte;
 
 extern void d2tv(double x, struct timeval *tv);
 extern int str_to_int_with_default(const char *str, int default_value);
-extern unsigned long generate_random_ulong();
+extern uint64_t generate_random_ulong();
 
 #endif //PHP_TROCHILIDAE_UTILS_H

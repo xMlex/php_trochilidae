@@ -5,7 +5,7 @@
 #ifndef PHP_TROCHILIDAE_TR_TIMER_H
 #define PHP_TROCHILIDAE_TR_TIMER_H
 
-#include <php.h>
+#include "trochilidae/compat.h"
 
 #define Z_TR_TIMER_P(zv) (TrTimer*)Z_OBJ_P((zv))
 #define Z_TR_TIMER(zv) (*Z_TR_TIMER_P(zv))
@@ -14,7 +14,7 @@ typedef struct {
     char *name;
     int nameLen;
     struct timeval executionTime, totalExecutionTime;
-    uint startCount, stopCount;
+    unsigned int startCount, stopCount;
     // php
     zend_resource *resource;
 } TrTimer;
