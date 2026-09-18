@@ -1,7 +1,7 @@
 {
   "name": "xmlex/php_trochilidae",
   "type": "php-ext",
-  "license": "PHP-3.01",
+  "license": "GPL-3.0 license",
   "description": "A PHP extension for metrics collect.",
   "require": {
     "php": ">=7.4.0 || >=8.0.0"
