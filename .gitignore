@@ -3,6 +3,7 @@
 !.gitignore
 !/tests
 !/tests/*.phpt
+!/tests/*.c
 !trochilidae.c
 !php_trochilidae.h
 !tr_network.c
