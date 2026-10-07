@@ -1,4 +1,4 @@
-FROM php:8.5.10-fpm-alpine3.24 as php-base
+FROM php:8.2.25-fpm-alpine3.20 as php-base
 
 ENV TZ=Europe/Moscow
 ENV HOME=/app

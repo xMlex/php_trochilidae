@@ -16,12 +16,9 @@ void tr_array_init(struct tr_array *self, size_t capacity) {
     self->init_capacity = capacity;
     self->capacity = capacity;
     self->data = malloc(sizeof(byte) * capacity);
-    // Проверяем ДО tr_array_clear(): тот делает memset(self->data, ...),
-    // и при неудачном malloc вместо внятного CHECK_ALLOC мы бы получили
-    // segfault на нулевом указателе.
-    CHECK_ALLOC(self->data);
     tr_array_clear(self);
     //fprintf(stderr, "tr_array_init: %zu\n", sizeof(byte) * capacity);
+    CHECK_ALLOC(self->data);
 }
 
 size_t tr_array_get_size(const struct tr_array *self) {
@@ -50,18 +47,8 @@ void tr_array_clear(struct tr_array *self) {
     self->position = 0;
 }
 
-void tr_array_free(struct tr_array *self) {
-    if (!self) {
-        return;
-    }
+void tr_array_free(const struct tr_array *self) {
     free(self->data);
-    // Обнуляем всё: без этого повторный tr_array_free() освободил бы уже
-    // освобождённое (double free), а tr_array_init() молча потерял бы буфер.
-    self->data = NULL;
-    self->size = 0;
-    self->position = 0;
-    self->init_capacity = 0;
-    self->capacity = 0;
 }
 
 void tr_array_ensure_capacity(struct tr_array *self, const size_t additional_size) {

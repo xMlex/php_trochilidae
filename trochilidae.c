@@ -28,12 +28,6 @@ ZEND_GET_MODULE(trochilidae)
 int res_tr_timer;
 int collector_count = 0;
 
-// Защита от реентерабельности: send_data() может быть вызван повторно из
-// пользовательского error-handler (php_error_docref в send_data бросает
-// E_NOTICE, когда коллектор недоступен). Вложенная инициализация
-// TR_G(msg) перезаписывала бы живой указатель и роняла процесс (SIGSEGV).
-static bool in_send_data = false;
-
 PHP_FUNCTION(trochilidae_set_tag) {
     zend_string *k;
     zend_string *v;
@@ -185,12 +179,6 @@ static PHP_MINIT_FUNCTION(trochilidae) {
     ZEND_INIT_MODULE_GLOBALS(trochilidae, php_trochilidae_ctor_globals, php_trochilidae_dtor_globals);
     REGISTER_INI_ENTRIES();
 
-    // Буфер сообщения живёт на уровне модуля: выделяем его здесь, один раз
-    // на процесс и ещё до первого запроса. Благодаря этому trochilidae_flush()
-    // в теле скрипта вообще ничего не выделяет - значит и не может упереться
-    // в memory_limit в потоке, где скрипт и так съел 120+ МБ.
-    tr_array_init(&TR_G(msg), 0);
-
     TR_G(modeCli) = (sapi_module.name && strcmp(sapi_module.name, "cli") == 0);
     sapi_old_ub_write = sapi_module.ub_write;
     sapi_module.ub_write = sapi_ub_write_counter;
@@ -200,11 +188,6 @@ static PHP_MINIT_FUNCTION(trochilidae) {
 }
 
 static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
-    // Освобождаем буфер сообщения при выгрузке модуля: он выделен в
-    // PHP_MINIT и переживает запросы. В NTS dtor_globals вообще не вызывается,
-    // поэтому единственное место, где буфер гарантированно освобождается,
-    // - это здесь.
-    tr_array_free(&TR_G(msg));
     for (int i = 0; i < PHP_TROCHILIDAE_COLLECTORS_MAX; ++i) {
         tr_client_destroy(&TR_G(collectors[i]));
     }
@@ -212,17 +195,12 @@ static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
 }
 
 static PHP_RINIT_FUNCTION(trochilidae) {
-    // Сбрасываем после возможного bailout в прошлом запросе (fatal error
-    // или request_terminate_timeout прямо внутри send_data).
-    in_send_data = false;
     tr_reset();
     return SUCCESS;
 }
 
 static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
-    // Буфер сообщения между запросами НЕ трогаем: он выделен в PHP_MINIT
-    // и должен быть готов к следующему запросу без повторного malloc.
-    tr_flush();
+     tr_flush();
     return SUCCESS;
 }
 
@@ -247,14 +225,6 @@ static int tr_flush() {
 }
 
 static int send_data() {
-    if (in_send_data) {
-        // Вложенная отправка (вызов trochilidae_flush() из error-handler
-        // во время php_error_docref ниже) - просто выходим: буфер и так
-        // уже инициализирован, повторная инициализация его потеряла бы.
-        return SUCCESS;
-    }
-    in_send_data = true;
-
     collect_metrics_after_request();
 
     uint8_t modeType = PHP_TROCHILIDAE_MODE_CGI;
@@ -262,24 +232,21 @@ static int send_data() {
         modeType = PHP_TROCHILIDAE_MODE_CLI;
     }
 
-    // Буфер сообщения уже выделен в PHP_MINIT (DEFAULT_CAPACITY = 9216):
-    // здесь достаточно сбросить позицию/размер, никакого malloc. Ветка с
-    // tr_array_init - страховка (ZTS: не-главный поток; или если инициализация
-    // по какой-то причине не произошла).
-    if (TR_G(msg).data == NULL) {
-        tr_array_init(&TR_G(msg), 0);
+    char *request_domain;
+    if (TR_G(requestData).request_domain) {
+        request_domain = TR_G(requestData).request_domain;
     } else {
-        tr_array_clear(&TR_G(msg));
+        request_domain = strdup(sapi_module.name);
     }
 
-    const char *request_domain = TR_G(requestData).request_domain
-        ? TR_G(requestData).request_domain
-        : sapi_module.name;
+    char *request_uri;
+    if (TR_G(requestData).request_uri) {
+        request_uri = TR_G(requestData).request_uri;
+    } else {
+        request_uri = strdup(sapi_module.name);
+    }
 
-    const char *request_uri = TR_G(requestData).request_uri
-        ? TR_G(requestData).request_uri
-        : sapi_module.name;
-
+    tr_array_init(&TR_G(msg), 0);
     tr_array_write_tv(&TR_G(msg), &TR_G(requestData).request_start_time);
     tr_array_write_byte(&TR_G(msg), &modeType);
     tr_array_write_byte(&TR_G(msg), &TR_G(requestData).request_method);
@@ -297,7 +264,7 @@ static int send_data() {
 
     //argv
     uint32_t argvCount = 0;
-    const zval *argvList = tr_fetch_global_var_ar("argv");
+    const zval *argvList = tr_fetch_global_var_ar(strdup("argv"));
     if (argvList) {
         argvCount = zend_array_count(Z_ARR_P(argvList));
         tr_array_write_short(&TR_G(msg), &argvCount); // count
@@ -360,9 +327,7 @@ static int send_data() {
         }
     }
 
-    // Буфер здесь намеренно не освобождаем: он переиспользуется следующим
-    // flush'ем того же запроса. tr_array_free() - в PHP_RSHUTDOWN.
-    in_send_data = false;
+    tr_array_free(&TR_G(msg));
 
     return SUCCESS;
 
@@ -374,8 +339,6 @@ static void php_trochilidae_ctor_globals(zend_trochilidae_globals *globals) {
 }
 
 static void php_trochilidae_dtor_globals(zend_trochilidae_globals *globals) {
-    // Последний рубеж: буфер сообщения не должен пережить процесс.
-    tr_array_free(&globals->msg);
 }
 
 static PHP_MINFO_FUNCTION(trochilidae) {
@@ -511,10 +474,10 @@ static inline struct timeval tr_fetch_global_var_tv(const char *name) {
 
 static inline zval *tr_fetch_global_var_zval(const char *name) {
     if ((Z_TYPE(PG(http_globals)[TRACK_VARS_SERVER]) == IS_ARRAY || zend_is_auto_global_str(ZEND_STRL("_SERVER")))) {
-        // zend_hash_str_find вместо zend_hash_find(zend_string): раньше здесь
-        // на каждый вызов создавался и освобождался zend_string - то есть
-        // лишнее выделение памяти на каждый trochilidae_flush() (для "argv").
-        return zend_hash_str_find(Z_ARRVAL(PG(http_globals)[TRACK_VARS_SERVER]), name, strlen(name));
+        zend_string *findName = zend_string_init(name, strlen(name), 0);
+        zval *result = zend_hash_find(Z_ARRVAL(PG(http_globals)[TRACK_VARS_SERVER]), findName);
+        zend_string_release(findName);
+        return result;
     }
     return NULL;
 }

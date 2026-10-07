@@ -11,17 +11,7 @@
 
 #include "trochilidae/utils.h"
 
-// Начальный размер буфера сообщения. Сознательно "не round" число, чтобы
-// в логах ошибок его было легко найти по коду: если ошибка
-// "Allowed memory size ... exhausted (tried to allocate N bytes)"
-// повторится - N будет равно 9216, а не мегабайтам.
-//
-// Буфер выделяется ОДИН РАЗ на процесс - в PHP_MINIT, ещё до первого
-// запроса, - и освобождается в PHP_MSHUTDOWN. Между запросами выделений
-// и освобождений нет, поэтому вызов trochilidae_flush() в теле скрипта
-// ничего не выделяет. Если сообщение всё-таки не влезло, буфер растёт
-// через tr_array_ensure_capacity.
-#define DEFAULT_CAPACITY 9216
+#define DEFAULT_CAPACITY 5194910
 
 /**
  * @struct tr_array
@@ -46,22 +36,9 @@ struct tr_array {
         }                                   \
     } while (0)
 
-/**
- * @brief Выделяет буфер и обнуляет содержимое.
- *
- * Указатель должен быть либо нулевым (зануленная структура / после
- * tr_array_free), либо уже инициализирован: функция НЕ освобождает
- * предыдущий self->data, а просто перезаписывает указатель.
- */
 extern void tr_array_init(struct tr_array *self, size_t capacity);
-/**
- * @brief Освобождает буфер и обнуляет все поля.
- *
- * Идемпотентна: повторный вызов безопасен (free(NULL)), после вызова
- * структура снова пригодна для tr_array_init.
- */
-extern void tr_array_free(struct tr_array *self);
 extern void tr_array_clear(struct tr_array *self);
+extern void tr_array_free(const struct tr_array *self);
 extern size_t tr_array_get_position(const struct tr_array *self);
 extern void tr_array_set_position(struct tr_array *self, size_t position);
 extern size_t tr_array_get_size(const struct tr_array *self);
