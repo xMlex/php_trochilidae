@@ -34,17 +34,22 @@ void tr_array_set_position(struct tr_array *self, size_t position) {
 }
 
 void tr_array_clear(struct tr_array *self) {
-    if (self->capacity > self->init_capacity) {
-        free(self->data);
-        self->capacity = self->init_capacity;
-        self->data = (byte *)malloc(sizeof(byte) * self->capacity);
-        CHECK_ALLOC(self->data);
-    } else {
-        memset(self->data, 0, self->capacity);
-    }
-
     self->size = 0;
     self->position = 0;
+}
+
+void tr_array_reset(struct tr_array *self) {
+    tr_array_clear(self);
+
+    if (self->capacity <= self->init_capacity) {
+        return;
+    }
+
+    byte *new_data = realloc(self->data, sizeof(byte) * self->init_capacity);
+    CHECK_ALLOC(new_data);
+
+    self->data = new_data;
+    self->capacity = self->init_capacity;
 }
 
 void tr_array_free(const struct tr_array *self) {
@@ -55,7 +60,7 @@ void tr_array_ensure_capacity(struct tr_array *self, const size_t additional_siz
     if (additional_size == 0) return;
 
     const size_t required_capacity = self->position + additional_size;
-    if (required_capacity < self->capacity) {
+    if (required_capacity <= self->capacity) {
         return;
     }
     size_t new_capacity = self->capacity * 2;
@@ -125,4 +130,3 @@ void tr_array_write_tv(struct tr_array *self, struct timeval *tv) {
      tr_array_write_word(self, &tv->tv_sec);
      tr_array_write_word(self, &tv->tv_usec);
 }
-
