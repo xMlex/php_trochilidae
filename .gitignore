@@ -1,8 +1,12 @@
 *
 !lz4
 !.gitignore
+!/AGENTS.md
 !/tests
 !/tests/*.phpt
+!/tests/fpm_lifecycle.sh
+!/tests/fpm_lifecycle_request.php
+!/tests/docker_test.sh
 !trochilidae.c
 !php_trochilidae.h
 !tr_network.c

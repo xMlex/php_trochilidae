@@ -20,6 +20,8 @@ size_t (*sapi_old_ub_write)(const char *str, size_t str_length);
 TrTimer *get_or_create_tr_timer(zend_string *timerName);
 
 void update_server_list();
+static void clear_request_data_strings(void);
+static char *tr_fetch_global_var_copy(const char *name);
 
 #ifdef COMPILE_DL_TROCHILIDAE
 ZEND_GET_MODULE(trochilidae)
@@ -191,6 +193,7 @@ static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
     for (int i = 0; i < PHP_TROCHILIDAE_COLLECTORS_MAX; ++i) {
         tr_client_destroy(&TR_G(collectors[i]));
     }
+    tr_array_free(&TR_G(msg));
     return SUCCESS;
 }
 
@@ -200,15 +203,31 @@ static PHP_RINIT_FUNCTION(trochilidae) {
 }
 
 static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
-     tr_flush();
+    tr_flush();
+    /* These zvals own request-allocated memory; release it before request shutdown. */
+    if (!Z_ISUNDEF_P(&TR_G(tags))) {
+        zval_ptr_dtor(&TR_G(tags));
+    }
+    ZVAL_UNDEF(&TR_G(tags));
+    if (!Z_ISUNDEF_P(&TR_G(timers))) {
+        zval_ptr_dtor(&TR_G(timers));
+    }
+    ZVAL_UNDEF(&TR_G(timers));
+    clear_request_data_strings();
     return SUCCESS;
 }
 
 static int tr_reset() {
     TR_G(flashed) = false;
     collect_metrics_before_request();
-    zval_dtor(&TR_G(tags));
-    zval_dtor(&TR_G(timers));
+    if (!Z_ISUNDEF_P(&TR_G(tags))) {
+        zval_ptr_dtor(&TR_G(tags));
+    }
+    ZVAL_UNDEF(&TR_G(tags));
+    if (!Z_ISUNDEF_P(&TR_G(timers))) {
+        zval_ptr_dtor(&TR_G(timers));
+    }
+    ZVAL_UNDEF(&TR_G(timers));
     array_init(&TR_G(tags));
     array_init(&TR_G(timers));
     return SUCCESS;
@@ -232,21 +251,14 @@ static int send_data() {
         modeType = PHP_TROCHILIDAE_MODE_CLI;
     }
 
-    char *request_domain;
-    if (TR_G(requestData).request_domain) {
-        request_domain = TR_G(requestData).request_domain;
-    } else {
-        request_domain = strdup(sapi_module.name);
-    }
+    const char *request_domain = TR_G(requestData).request_domain
+        ? TR_G(requestData).request_domain
+        : sapi_module.name;
+    const char *request_uri = TR_G(requestData).request_uri
+        ? TR_G(requestData).request_uri
+        : sapi_module.name;
 
-    char *request_uri;
-    if (TR_G(requestData).request_uri) {
-        request_uri = TR_G(requestData).request_uri;
-    } else {
-        request_uri = strdup(sapi_module.name);
-    }
-
-    tr_array_init(&TR_G(msg), 0);
+    tr_array_clear(&TR_G(msg));
     tr_array_write_tv(&TR_G(msg), &TR_G(requestData).request_start_time);
     tr_array_write_byte(&TR_G(msg), &modeType);
     tr_array_write_byte(&TR_G(msg), &TR_G(requestData).request_method);
@@ -327,7 +339,7 @@ static int send_data() {
         }
     }
 
-    tr_array_free(&TR_G(msg));
+    tr_array_reset(&TR_G(msg));
 
     return SUCCESS;
 
@@ -336,6 +348,7 @@ static int send_data() {
 static void php_trochilidae_ctor_globals(zend_trochilidae_globals *globals) {
     memset(globals, 0, sizeof(*globals));
     gethostname(globals->hostName, sizeof(globals->hostName));
+    tr_array_init(&globals->msg, 0);
 }
 
 static void php_trochilidae_dtor_globals(zend_trochilidae_globals *globals) {
@@ -386,6 +399,8 @@ zend_module_entry trochilidae_module_entry = {
 };
 
 static void collect_metrics_before_request() {
+    clear_request_data_strings();
+
     TR_G(requestCount)++;
     struct rusage u;
     gettimeofday(&TR_G(requestData).executionTime, NULL);
@@ -396,18 +411,28 @@ static void collect_metrics_before_request() {
     TR_G(requestData).response_http_size = 0;
     if (TR_G(modeCli)) {
         TR_G(requestData).request_method = PHP_TROCHILIDAE_REQUEST_METHOD_NONE;
-        TR_G(requestData).request_uri = tr_fetch_global_var("SCRIPT_FILENAME");
-        TR_G(requestData).request_domain = tr_fetch_global_var("PWD");
+        TR_G(requestData).request_uri = tr_fetch_global_var_copy("SCRIPT_FILENAME");
+        TR_G(requestData).request_domain = tr_fetch_global_var_copy("PWD");
     } else {
         TR_G(requestData).request_method = tr_request_method_map(tr_fetch_global_var("REQUEST_METHOD"));
-        TR_G(requestData).request_uri = tr_fetch_global_var("REQUEST_URI");
-        TR_G(requestData).request_domain = tr_fetch_global_var("HTTP_HOST");
+        TR_G(requestData).request_uri = tr_fetch_global_var_copy("REQUEST_URI");
+        TR_G(requestData).request_domain = tr_fetch_global_var_copy("HTTP_HOST");
         if (TR_G(requestData).request_domain == NULL) {
-            TR_G(requestData).request_domain = tr_fetch_global_var("SERVER_NAME");
+            TR_G(requestData).request_domain = tr_fetch_global_var_copy("SERVER_NAME");
         }
     }
     TR_G(requestData).request_start_time = tr_fetch_global_var_tv("REQUEST_TIME_FLOAT");
-    TR_G(requestData).request_id = tr_fetch_global_var("HTTP_X_REQUEST_ID");
+    TR_G(requestData).request_id = tr_fetch_global_var_copy("HTTP_X_REQUEST_ID");
+}
+
+static void clear_request_data_strings(void) {
+    free(TR_G(requestData).request_uri);
+    free(TR_G(requestData).request_domain);
+    free(TR_G(requestData).request_id);
+
+    TR_G(requestData).request_uri = NULL;
+    TR_G(requestData).request_domain = NULL;
+    TR_G(requestData).request_id = NULL;
 }
 
 static void collect_metrics_after_request() {
@@ -434,6 +459,11 @@ static inline char *tr_fetch_global_var(const char *name) {
         return Z_STRVAL_P(tmp);
     }
     return NULL;
+}
+
+static char *tr_fetch_global_var_copy(const char *name) {
+    char *value = tr_fetch_global_var(name);
+    return value ? strdup(value) : NULL;
 }
 
 static inline zval *tr_fetch_global_var_ar(const char *name) {
