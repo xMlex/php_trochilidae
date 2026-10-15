@@ -47,11 +47,8 @@ daemonize = no
 user = www-data
 group = www-data
 listen = 127.0.0.1:$PORT
-pm = dynamic
-pm.min_spare_servers=2
-pm.max_spare_servers=4
-pm.max_children = 2
-pm.max_requests = 50
+pm = static
+pm.max_requests = 0
 catch_workers_output = yes
 clear_env = no
 EOF2
