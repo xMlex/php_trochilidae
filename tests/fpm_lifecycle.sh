@@ -51,7 +51,7 @@ pm = dynamic
 pm.min_spare_servers=2
 pm.max_spare_servers=4
 pm.max_children = 2
-pm.max_requests = 2
+pm.max_requests = 50
 catch_workers_output = yes
 clear_env = no
 EOF2
