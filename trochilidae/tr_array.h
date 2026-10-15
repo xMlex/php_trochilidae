@@ -11,7 +11,7 @@
 
 #include "trochilidae/utils.h"
 
-#define DEFAULT_CAPACITY 9216
+#define DEFAULT_CAPACITY 5194910
 
 /**
  * @struct tr_array
@@ -38,7 +38,6 @@ struct tr_array {
 
 extern void tr_array_init(struct tr_array *self, size_t capacity);
 extern void tr_array_clear(struct tr_array *self);
-extern void tr_array_reset(struct tr_array *self);
 extern void tr_array_free(const struct tr_array *self);
 extern size_t tr_array_get_position(const struct tr_array *self);
 extern void tr_array_set_position(struct tr_array *self, size_t position);

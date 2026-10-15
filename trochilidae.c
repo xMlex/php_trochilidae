@@ -191,7 +191,6 @@ static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
     for (int i = 0; i < PHP_TROCHILIDAE_COLLECTORS_MAX; ++i) {
         tr_client_destroy(&TR_G(collectors[i]));
     }
-    tr_array_free(&TR_G(msg));
     return SUCCESS;
 }
 
@@ -247,7 +246,7 @@ static int send_data() {
         request_uri = strdup(sapi_module.name);
     }
 
-    tr_array_clear(&TR_G(msg));
+    tr_array_init(&TR_G(msg), 0);
     tr_array_write_tv(&TR_G(msg), &TR_G(requestData).request_start_time);
     tr_array_write_byte(&TR_G(msg), &modeType);
     tr_array_write_byte(&TR_G(msg), &TR_G(requestData).request_method);
@@ -328,7 +327,7 @@ static int send_data() {
         }
     }
 
-    tr_array_reset(&TR_G(msg));
+    tr_array_free(&TR_G(msg));
 
     return SUCCESS;
 
@@ -337,11 +336,9 @@ static int send_data() {
 static void php_trochilidae_ctor_globals(zend_trochilidae_globals *globals) {
     memset(globals, 0, sizeof(*globals));
     gethostname(globals->hostName, sizeof(globals->hostName));
-    tr_array_init(&globals->msg, 0);
 }
 
 static void php_trochilidae_dtor_globals(zend_trochilidae_globals *globals) {
-    tr_array_free(&globals->msg);
 }
 
 static PHP_MINFO_FUNCTION(trochilidae) {
