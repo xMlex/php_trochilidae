@@ -1,10 +1,15 @@
 #ifndef PHP_TROCHILIDAE_H
 #define PHP_TROCHILIDAE_H 1
 
-#define PHP_TROCHILIDAE_VERSION "0.0.7-dev"
+#define PHP_TROCHILIDAE_VERSION "0.0.8-dev"
 #define PHP_TROCHILIDAE_EXTNAME "trochilidae"
 #define PHP_TROCHILIDAE_MODE_CLI 0x01
 #define PHP_TROCHILIDAE_MODE_CGI 0x02
+
+/* PHP 8.6 removed ZEND_PARSE_PARAMS_THROW: argument parsing always throws since 8.0. */
+#ifndef ZEND_PARSE_PARAMS_THROW
+#define ZEND_PARSE_PARAMS_THROW 0
+#endif
 
 #include <sys/resource.h>
 #include "trochilidae/utils.h"

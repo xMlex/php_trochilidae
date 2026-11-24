@@ -48,6 +48,7 @@ user = www-data
 group = www-data
 listen = 127.0.0.1:$PORT
 pm = static
+pm.max_children = 1
 pm.max_requests = 0
 catch_workers_output = yes
 clear_env = no
