@@ -5,7 +5,7 @@ static void php_trochilidae_ctor_globals(zend_trochilidae_globals *globals);
 
 static void php_trochilidae_dtor_globals(zend_trochilidae_globals *globals);
 
-static void collect_metrics_before_request();
+static void collect_metrics_before_request(bool count_request);
 
 static void collect_metrics_after_request();
 
@@ -26,7 +26,7 @@ static void tr_client_w_argvs(size_t *pos);
 static int tr_client_init_or_error(TrClient *client);
 
 static int tr_flush();
-static int tr_reset();
+static int tr_reset(bool count_request);
 static int send_data();
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_trochilidae_set_tag, 0, 0, 2)

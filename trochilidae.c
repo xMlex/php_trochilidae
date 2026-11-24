@@ -130,8 +130,9 @@ PHP_FUNCTION(trochilidae_reset) {
      * workers call this once per logical request as a manual RINIT; under FPM
      * RINIT already did it, so calling it mid-request deliberately discards
      * timing/CPU/output collected so far. See docs/decisions/001-reset-semantics.md.
+     * It does not count as a new PHP request: RINIT owns requestCount.
      */
-    tr_reset();
+    tr_reset(false);
     RETURN_TRUE;
 }
 
@@ -204,7 +205,7 @@ static PHP_MSHUTDOWN_FUNCTION(trochilidae) {
 }
 
 static PHP_RINIT_FUNCTION(trochilidae) {
-    tr_reset();
+    tr_reset(true);
     return SUCCESS;
 }
 
@@ -223,10 +224,10 @@ static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
     return SUCCESS;
 }
 
-static int tr_reset() {
+static int tr_reset(bool count_request) {
     /* A fresh window must be flushable again (CLI loop relies on this). */
     TR_G(flashed) = false;
-    collect_metrics_before_request();
+    collect_metrics_before_request(count_request);
     if (!Z_ISUNDEF_P(&TR_G(tags))) {
         zval_ptr_dtor(&TR_G(tags));
     }
@@ -283,7 +284,7 @@ static int send_data() {
 
     //argv
     uint32_t argvCount = 0;
-    const zval *argvList = tr_fetch_global_var_ar(strdup("argv"));
+    const zval *argvList = tr_fetch_global_var_ar("argv");
     if (argvList) {
         argvCount = zend_array_count(Z_ARR_P(argvList));
         tr_array_write_short(&TR_G(msg), &argvCount); // count
@@ -405,10 +406,12 @@ zend_module_entry trochilidae_module_entry = {
     STANDARD_MODULE_PROPERTIES
 };
 
-static void collect_metrics_before_request() {
+static void collect_metrics_before_request(bool count_request) {
     clear_request_data_strings();
 
-    TR_G(requestCount)++;
+    if (count_request) {
+        TR_G(requestCount)++;
+    }
     struct rusage u;
     gettimeofday(&TR_G(requestData).executionTime, NULL);
     getrusage(RUSAGE_SELF, &u);

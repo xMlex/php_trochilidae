@@ -82,6 +82,6 @@ removing the metric re-snapshot from `reset()`.
   tag such as an iteration number.
 * Output produced after `flush()` is cleared by the next `reset()`; callers
   should write output before flushing if it must be counted.
-* `requestCount` in `phpinfo()` currently overcounts by one per CLI iteration
-  and by one per mid-request `reset()` in FPM. This is tracked separately and
-  must be fixed without changing the window semantics described here.
+* `requestCount` in `phpinfo()` is owned by `RINIT` only. `trochilidae_reset()`
+  no longer increments it, so a CLI daemon iteration does not inflate the PHP
+  request count, while the window semantics stay exactly as described.
