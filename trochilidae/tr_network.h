@@ -81,6 +81,8 @@ typedef struct {
     int port;
 } DomainPortEntry;
 
+extern int domain_resolve_cache_timeout;
+
 extern int* tr_network_get_domain_resolve_cache_size();
 
 extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPairs);

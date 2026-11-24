@@ -30,6 +30,7 @@ ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
     bool flashed;
     bool modeCli;
     char *server_list;
+    int dnsCacheTtl;
     char hostName[HOST_NAME_MAX];
     struct tr_array msg;
     TrClient collectors[PHP_TROCHILIDAE_COLLECTORS_MAX];

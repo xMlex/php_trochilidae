@@ -189,10 +189,29 @@ ZEND_INI_MH(onUpdateServerList) {
     return SUCCESS;
 }
 
+ZEND_INI_MH(onUpdateDnsCacheTtl) {
+    if (!new_value) {
+        return FAILURE;
+    }
+    char *end = NULL;
+    long ttl = strtol(ZSTR_VAL(new_value), &end, 10);
+    if (end == ZSTR_VAL(new_value) || ttl < 1) {
+        ttl = DOMAIN_RESOLVE_CACHE_TIMEOUT_SEC;
+    }
+    if (ttl > INT_MAX) {
+        ttl = INT_MAX;
+    }
+    domain_resolve_cache_timeout = (int)ttl;
+    TR_G(dnsCacheTtl) = (int)ttl;
+    return SUCCESS;
+}
+
 PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("trochilidae.enabled", "1", PHP_INI_ALL, OnUpdateBool, enabled, zend_trochilidae_globals,
                         trochilidae_globals)
     STD_PHP_INI_ENTRY("trochilidae.server_list", NULL, PHP_INI_ALL, onUpdateServerList, server_list,
+                      zend_trochilidae_globals, trochilidae_globals)
+    STD_PHP_INI_ENTRY("trochilidae.dns_cache_ttl", "600", PHP_INI_ALL, onUpdateDnsCacheTtl, dnsCacheTtl,
                       zend_trochilidae_globals, trochilidae_globals)
 PHP_INI_END()
 

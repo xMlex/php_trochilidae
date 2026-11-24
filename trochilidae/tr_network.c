@@ -28,33 +28,42 @@ int find_domain_resolve_cache_lru_entry_index() {
 
 struct in_addr find_ip_address(const char *domain) {
     struct in_addr ip;
+    const time_t now = time(NULL);
+    int cache_index = -1;
+
     for (int i = 0; i < domain_resolve_cache_size; ++i) {
         if (strcmp(domain_resolve_cache[i].domain, domain) == 0) {
-            domain_resolve_cache[i].last_used = time(NULL);
-            return domain_resolve_cache[i].ip;
+            domain_resolve_cache[i].last_used = now;
+            /* `last_used` is for LRU eviction only; freshness is `resolved_at`. */
+            if (now - domain_resolve_cache[i].resolved_at < domain_resolve_cache_timeout) {
+                return domain_resolve_cache[i].ip;
+            }
+            cache_index = i; /* expired: re-resolve and refresh in place */
+            break;
         }
     }
 
-    // If not found in cache, perform DNS lookup
+    // No fresh entry in cache: perform DNS lookup
     struct hostent *host_entry = gethostbyname(domain);
     if (host_entry == NULL || host_entry->h_addr_list[0] == NULL) {
         ip.s_addr = INADDR_NONE;
-    } else {
-        ip = *(struct in_addr *) host_entry->h_addr_list[0];
-        // Add to cache
+        return ip;
+    }
+    ip = *(struct in_addr *) host_entry->h_addr_list[0];
+
+    if (cache_index < 0) {
         if (domain_resolve_cache_size < DOMAIN_RESOLVE_MAX_CACHE_ENTRIES) {
-            strcpy(domain_resolve_cache[domain_resolve_cache_size].domain, domain);
-            domain_resolve_cache[domain_resolve_cache_size].ip = ip;
-            domain_resolve_cache[domain_resolve_cache_size].last_used = time(NULL);
-            domain_resolve_cache_size++;
+            cache_index = domain_resolve_cache_size++;
         } else {
-            // Replace least recently used entry
-            int lru_index = find_domain_resolve_cache_lru_entry_index();
-            strcpy(domain_resolve_cache[lru_index].domain, domain);
-            domain_resolve_cache[lru_index].ip = ip;
-            domain_resolve_cache[lru_index].last_used = time(NULL);
+            cache_index = find_domain_resolve_cache_lru_entry_index();
         }
     }
+    strncpy(domain_resolve_cache[cache_index].domain, domain,
+            sizeof(domain_resolve_cache[cache_index].domain) - 1);
+    domain_resolve_cache[cache_index].domain[sizeof(domain_resolve_cache[cache_index].domain) - 1] = '\0';
+    domain_resolve_cache[cache_index].ip = ip;
+    domain_resolve_cache[cache_index].last_used = now;
+    domain_resolve_cache[cache_index].resolved_at = now;
 
     return ip;
 }
@@ -65,36 +74,60 @@ struct in_addr find_ip_address(const char *domain) {
  * @return
  */
 extern DomainPortEntry * parse_domain_port_pairs(const char* input, int* numPairs) {
-    DomainPortEntry* pairs = (DomainPortEntry*)malloc(strlen(input) * sizeof(DomainPortEntry));
+    *numPairs = 0;
+    if (input == NULL) {
+        return NULL;
+    }
+
+    /* Never tokenise in place: `input` points into the INI entry's zend_string,
+     * and strtok() would replace the commas with NULs for every later reader.
+     * Bound the token count by the number of collectors the caller can use. */
+    const int max_pairs = PHP_TROCHILIDAE_COLLECTORS_MAX;
+    DomainPortEntry* pairs = (DomainPortEntry*)malloc((size_t)max_pairs * sizeof(DomainPortEntry));
     if (pairs == NULL) {
         fprintf(stderr,"parse_domain_port_pairs: malloc error\n");
-        return pairs;
+        return NULL;
     }
 
-    *numPairs = 0;
-    const char delimiter[] = ",";
-    char* token = strtok((char*)input, delimiter);
+    const char* cursor = input;
+    while (*cursor != '\0' && *numPairs < max_pairs) {
+        const char* comma = strchr(cursor, ',');
+        const size_t token_len = (comma != NULL)
+            ? (size_t)(comma - cursor)
+            : strlen(cursor);
 
-    while (token != NULL) {
-        char domain[MAX_DOMAIN_LENGTH];
-        int port = PHP_TROCHILIDAE_SERVER_DEFAULT_PORT;
+        const char* port_separator = memchr(cursor, ':', token_len);
+        const size_t domain_len = (port_separator != NULL)
+            ? (size_t)(port_separator - cursor)
+            : token_len;
 
-        char* portSeparator = strchr(token, ':');
-        if (portSeparator != NULL) {
-            strncpy(domain, token, portSeparator - token);
-            domain[portSeparator - token] = '\0';
-            port = str_to_int_with_default(portSeparator + 1, PHP_TROCHILIDAE_SERVER_DEFAULT_PORT);
-        } else {
-            strcpy(domain, token);
+        /* strtok skipped empty tokens but kept `:` as an empty-domain pair;
+         * keep that behaviour while rejecting oversized names. */
+        if (token_len > 0 && domain_len < MAX_DOMAIN_LENGTH) {
+            int port = PHP_TROCHILIDAE_SERVER_DEFAULT_PORT;
+
+            if (port_separator != NULL) {
+                const size_t port_len = token_len - domain_len - 1;
+                char port_str[16];
+                if (port_len > 0 && port_len < sizeof(port_str)) {
+                    memcpy(port_str, port_separator + 1, port_len);
+                    port_str[port_len] = '\0';
+                    port = str_to_int_with_default(port_str, PHP_TROCHILIDAE_SERVER_DEFAULT_PORT);
+                }
+            }
+
+            memcpy(pairs[*numPairs].domain, cursor, domain_len);
+            pairs[*numPairs].domain[domain_len] = '\0';
+            pairs[*numPairs].port = port;
+            ++(*numPairs);
         }
 
-        strcpy(pairs[*numPairs].domain, domain);
-        pairs[*numPairs].port = port;
-
-        (*numPairs)++;
-        token = strtok(NULL, delimiter);
+        if (comma == NULL) {
+            break;
+        }
+        cursor = comma + 1;
     }
-    //printf("parse_domain_port_pairs: %d\n", (*numPairs));
+
     return pairs;
 }
 
@@ -202,7 +235,10 @@ extern bool tr_client_refresh_server(TrClient *client) {
         return false;
     }
     const time_t t = time(NULL);
-    if (client->sock_address_refresh_at > (t + domain_resolve_cache_timeout)) {
+    /* `sock_address_refresh_at` is the time of the last successful resolve (0
+     * means "never"). A failed resolve stores `t - timeout + 25`, which leaves
+     * a 25 second retry window with this comparison. */
+    if (client->sock_address_refresh_at > (t - domain_resolve_cache_timeout)) {
         return true;
     }
 

@@ -47,8 +47,7 @@ output bytes collected so far — usually you do not want that there.
 while (($msg = fgets(STDIN)) !== false) {
     trochilidae_reset();                       // open a new window
     trochilidae_set_tag('calc_pipe', '1');
-    $data = json_decode($msg, true, 512, JSON_THROW_ON_ERROR);
-    doWorkMethod($data);
+    doWorkMethod($msg);
     echo 'OK', PHP_EOL;                        // write output before flush
     trochilidae_flush();                       // send this window
 }
@@ -68,6 +67,32 @@ while (($msg = fgets(STDIN)) !== false) {
 
 See `docs/decisions/001-reset-semantics.md` for why `reset()` keeps this
 behaviour instead of being split into two functions.
+
+## INI settings
+
+| Name | Default | Description |
+|---|---|---|
+| `trochilidae.enabled` | `1` | Enable or disable collection. |
+| `trochilidae.server_list` | — | Comma-separated `host:port` collector list. Parsing never modifies the INI value. |
+| `trochilidae.dns_cache_ttl` | `600` | Seconds a resolved collector IP is reused before DNS is queried again. Values < 1 fall back to the default. |
+
+## Wire format: `timeval` fields are 32-bit
+
+`tr_array_write_tv()` serialises every `struct timeval` as two 4-byte words:
+`tv_sec` is the **low 32 bits** of the platform's 64-bit `time_t`, and `tv_usec`
+carries microseconds. This applies to `request_start_time`, `executionTime`,
+`CPUUsageUserTime`, `CPUUsageSystemTime` and each timer's `totalExecutionTime`.
+
+Most of these fields are **durations** (measured from the window or timer
+start), so their values stay small and the 4-byte field is not a problem. The
+exception is `request_start_time`, which is the absolute epoch value taken from
+`$_SERVER['REQUEST_TIME_FLOAT']`. Collectors must read the seconds field as
+**unsigned**: as a signed 32-bit timestamp it overflows on 2038-01-19, while the
+raw 32 bits only wrap in 2106.
+
+Widening the field to 8 bytes changes the packet layout and breaks existing
+collectors. The format is deliberately left as-is; any change needs a
+coordinated protocol version bump on both sides.
 
 TODO:
 - ~~REQUEST_TIME from php~~
