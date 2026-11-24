@@ -7,6 +7,9 @@
 !/tests/fpm_lifecycle.sh
 !/tests/fpm_lifecycle_request.php
 !/tests/docker_test.sh
+!/docs
+!/docs/decisions
+!/docs/decisions/*.md
 !trochilidae.c
 !php_trochilidae.h
 !tr_network.c

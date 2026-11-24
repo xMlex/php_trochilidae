@@ -125,6 +125,12 @@ PHP_FUNCTION(trochilidae_flush) {
 }
 
 PHP_FUNCTION(trochilidae_reset) {
+    /*
+     * Full metric-window reset, not just a tag/timer cleanup. Long-running CLI
+     * workers call this once per logical request as a manual RINIT; under FPM
+     * RINIT already did it, so calling it mid-request deliberately discards
+     * timing/CPU/output collected so far. See docs/decisions/001-reset-semantics.md.
+     */
     tr_reset();
     RETURN_TRUE;
 }
@@ -218,6 +224,7 @@ static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
 }
 
 static int tr_reset() {
+    /* A fresh window must be flushable again (CLI loop relies on this). */
     TR_G(flashed) = false;
     collect_metrics_before_request();
     if (!Z_ISUNDEF_P(&TR_G(tags))) {
