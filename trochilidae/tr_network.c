@@ -150,6 +150,8 @@ extern bool tr_client_create(TrClient *client) {
         return false;
     }
     if (!tr_client_set_addr_info(client)) {
+        close(client->socketFd);
+        client->socketFd = -1;
         return false;
     }
     client->initialized = true;
@@ -163,13 +165,22 @@ extern void tr_client_destroy(TrClient *client) {
     if (!client) {
         return;
     }
-    client->initialized = false;
-    if (client->socketFd > 0) {
+    if (client->socketFd >= 0) {
         close(client->socketFd);
+        client->socketFd = -1;
     }
-    if (client->host){
+    if (client->host) {
         free(client->host);
+        client->host = NULL;
     }
+    client->initialized = false;
+    client->port = 0;
+    client->initAt = 0;
+    client->sock_address_refresh_at = 0;
+    memset(&client->sock_address_in, 0, sizeof(client->sock_address_in));
+    client->sock_address_in.sin_addr.s_addr = INADDR_NONE;
+    client->chunk_size = 0;
+    client->chunk_count = 0;
 }
 
 int tr_client_set_addr_info(TrClient *client) {
@@ -187,6 +198,9 @@ int tr_client_set_addr_info(TrClient *client) {
 }
 
 extern bool tr_client_refresh_server(TrClient *client) {
+    if (!client || !client->initialized || !client->host) {
+        return false;
+    }
     const time_t t = time(NULL);
     if (client->sock_address_refresh_at > (t + domain_resolve_cache_timeout)) {
         return true;
@@ -273,7 +287,7 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
 
 
 ssize_t tr_client_send(TrClient *client, void *buf, const size_t size) {
-    if (!client->initialized) {
+    if (!client || !client->initialized || !client->host) {
         return -1;
     }
     if (!tr_client_refresh_server(client)) {

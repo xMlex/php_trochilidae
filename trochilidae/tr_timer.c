@@ -4,9 +4,10 @@
 
 #include "tr_timer.h"
 
-extern TrTimer* tr_timer_new(const char* name) {
+extern TrTimer* tr_timer_new(const char* name, size_t nameLen) {
     TrTimer* s = (TrTimer*)emalloc(sizeof(TrTimer));
-    s->name = estrdup(name);
+    s->name = estrndup(name, nameLen);
+    s->nameLen = (int) nameLen;
     s->executionTime.tv_usec = 0;
     s->executionTime.tv_sec = 0;
     s->totalExecutionTime.tv_usec = 0;

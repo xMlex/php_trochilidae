@@ -19,7 +19,7 @@ typedef struct {
     zend_resource *resource;
 } TrTimer;
 
-extern TrTimer* tr_timer_new(const char* name);
+extern TrTimer* tr_timer_new(const char* name, size_t nameLen);
 extern void tr_timer_free(TrTimer* s);
 extern void res_tr_timer_dtor(zend_resource *rsrc);
 extern void tr_timer_start(TrTimer* s);

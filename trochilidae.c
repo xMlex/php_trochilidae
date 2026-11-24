@@ -38,7 +38,11 @@ PHP_FUNCTION(trochilidae_set_tag) {
         Z_PARAM_STR(v)
     ZEND_PARSE_PARAMETERS_END();
 
-    add_assoc_str(&TR_G(tags), ZSTR_VAL(k), zend_string_copy(v));
+    /* zend_hash_str_update preserves numeric-looking keys and embedded NULs;
+     * add_assoc_str() would use the symtable (integer keys) and strlen(). */
+    zval tmp;
+    ZVAL_STR(&tmp, zend_string_copy(v));
+    zend_hash_str_update(Z_ARRVAL_P(&TR_G(tags)), ZSTR_VAL(k), ZSTR_LEN(k), &tmp);
 }
 
 PHP_FUNCTION(trochilidae_set_hostname) {
@@ -65,7 +69,7 @@ TrTimer *get_or_create_tr_timer(zend_string *timerName) {
         return (TrTimer *) Z_RES_VAL_P(val);
     }
 
-    TrTimer *timer = tr_timer_new(ZSTR_VAL(timerName));
+    TrTimer *timer = tr_timer_new(ZSTR_VAL(timerName), ZSTR_LEN(timerName));
     if (timer == NULL) {
         return NULL;
     }
@@ -76,7 +80,11 @@ TrTimer *get_or_create_tr_timer(zend_string *timerName) {
         return NULL;
     }
     timer->resource = resource;
-    add_assoc_resource(&TR_G(timers), ZSTR_VAL(timerName), resource);
+    /* Keep the full binary key: add_assoc_resource() converts "7" to an
+     * integer key and truncates names at the first NUL. */
+    zval tmp;
+    ZVAL_RES(&tmp, resource);
+    zend_hash_str_update(Z_ARRVAL_P(&TR_G(timers)), ZSTR_VAL(timerName), ZSTR_LEN(timerName), &tmp);
     return timer;
 }
 
@@ -88,8 +96,9 @@ void update_server_list() {
         ? PHP_TROCHILIDAE_COLLECTORS_MAX
         : collector_count;
 
-    // Предварительное освобождение старых клиентов
-    for (int i = 0; i < collector_count; i++) {
+    /* Clear every slot: a shorter server list must not leave old clients
+     * (sockets and host strings) alive until MSHUTDOWN. */
+    for (int i = 0; i < PHP_TROCHILIDAE_COLLECTORS_MAX; i++) {
         tr_client_destroy(&TR_G(collectors)[i]);
     }
 
@@ -97,13 +106,16 @@ void update_server_list() {
     for (int i = 0; i < collector_count; i++) {
         TR_G(collectors)[i].host = strdup(pairs[i].domain); // используем strdup для безопасного копирования строки
         if (TR_G(collectors)[i].host == NULL) {
+            tr_client_destroy(&TR_G(collectors)[i]);
             continue; // Если не удалось выделить память для строки, пропускаем эту итерацию
         }
 
         TR_G(collectors)[i].port = pairs[i].port;
 
         if (!tr_client_init(&TR_G(collectors)[i])) {
-            free(TR_G(collectors)[i].host); // Если инициализация не удалась, освобождаем память
+            /* destroy closes the socket and clears host, so neither
+             * send_data() nor MSHUTDOWN can touch freed memory. */
+            tr_client_destroy(&TR_G(collectors)[i]);
         }
     }
 
@@ -307,7 +319,10 @@ static int send_data() {
         zend_string *key;
         zval *val;
         ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARR_P(&TR_G(tags)), key, val) {
-            tr_array_write_string_size(&TR_G(msg), key->val, key->len);
+            if (key == NULL) {
+                continue; /* integer keys must never be inserted; stay safe */
+            }
+            tr_array_write_string_size(&TR_G(msg), ZSTR_VAL(key), ZSTR_LEN(key));
             tr_array_write_string_size(&TR_G(msg), Z_STRVAL_P(val), Z_STRLEN_P(val));
         }
         ZEND_HASH_FOREACH_END();
@@ -320,7 +335,10 @@ static int send_data() {
         zend_string *key;
         zval *val;
         ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARR_P(&TR_G(timers)), key, val) {
-            tr_array_write_string(&TR_G(msg), key->val);
+            if (key == NULL) {
+                continue; /* integer keys must never be inserted; stay safe */
+            }
+            tr_array_write_string_size(&TR_G(msg), ZSTR_VAL(key), ZSTR_LEN(key));
             tr_array_write_word(&TR_G(msg), &((TrTimer *) Z_RES_VAL_P(val))->startCount);
             tr_array_write_tv(&TR_G(msg), &((TrTimer *) Z_RES_VAL_P(val))->totalExecutionTime);
         }
@@ -333,6 +351,9 @@ static int send_data() {
 
     // init clients
     for (int i = 0; i < collector_count; i++) {
+        if (!TR_G(collectors)[i].initialized) {
+            continue; /* failed init must not be dereferenced on refresh */
+        }
         tr_client_refresh_server(&TR_G(collectors)[i]);
 
         //printf("send_data: %zu to %s:%d\n", sizeMsg, TR_G(collectors)[i].host, TR_G(collectors)[i].port);
@@ -356,6 +377,9 @@ static int send_data() {
 static void php_trochilidae_ctor_globals(zend_trochilidae_globals *globals) {
     memset(globals, 0, sizeof(*globals));
     gethostname(globals->hostName, sizeof(globals->hostName));
+    for (int i = 0; i < PHP_TROCHILIDAE_COLLECTORS_MAX; i++) {
+        globals->collectors[i].socketFd = -1;
+    }
     tr_array_init(&globals->msg, 0);
 }
 
