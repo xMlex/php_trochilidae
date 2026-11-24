@@ -488,13 +488,13 @@ static inline struct timeval tr_fetch_global_var_tv(const char *name) {
     if (zv && Z_TYPE_P(zv) == IS_DOUBLE) {
         double time_float = Z_DVAL_P(zv);
         tv.tv_sec = (time_t) time_float;
-        tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6 * 1000);
+        tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6);
     } else if (zv && Z_TYPE_P(zv) == IS_STRING) {
         char *endptr;
         double time_float = strtod(Z_STRVAL_P(zv), &endptr);
         if (*endptr == '\0') {
             tv.tv_sec = (time_t) time_float;
-            tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6 * 1000);
+            tv.tv_usec = (suseconds_t) ((time_float - tv.tv_sec) * 1e6);
         } else {
             fprintf(stderr, "[tr] incorrect string val in _SERVER[%s] variable\n", name);
         }
