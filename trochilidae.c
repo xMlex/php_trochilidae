@@ -241,7 +241,15 @@ static PHP_RINIT_FUNCTION(trochilidae) {
 }
 
 static PHP_RSHUTDOWN_FUNCTION(trochilidae) {
+    const bool flushed_before_shutdown = TR_G(flashed);
     tr_flush();
+    /* The CPU baseline is only reusable when this shutdown closed the window.
+     * A userland flush() earlier in the request, or a disabled extension,
+     * leaves the snapshot at some other point in time: make the next RINIT
+     * take a fresh getrusage() instead of reusing a stale baseline. */
+    if (flushed_before_shutdown || TR_G(enabled) == false) {
+        TR_G(cpuSnapshotValid) = false;
+    }
     /* These zvals own request-allocated memory; release it before request shutdown. */
     if (!Z_ISUNDEF_P(&TR_G(tags))) {
         zval_ptr_dtor(&TR_G(tags));
@@ -373,7 +381,8 @@ static int send_data() {
         if (!TR_G(collectors)[i].initialized) {
             continue; /* failed init must not be dereferenced on refresh */
         }
-        tr_client_refresh_server(&TR_G(collectors)[i]);
+        /* tr_client_send() refreshes the address itself; doing it here too
+         * would resolve twice on a miss and add a redundant time() per send. */
 
         //printf("send_data: %zu to %s:%d\n", sizeMsg, TR_G(collectors)[i].host, TR_G(collectors)[i].port);
 
@@ -455,11 +464,23 @@ static void collect_metrics_before_request(bool count_request) {
     if (count_request) {
         TR_G(requestCount)++;
     }
-    struct rusage u;
     gettimeofday(&TR_G(requestData).executionTime, NULL);
-    getrusage(RUSAGE_SELF, &u);
-    tv_assign(&TR_G(requestData).CPUUsageUserTime, &u.ru_utime);
-    tv_assign(&TR_G(requestData).CPUUsageSystemTime, &u.ru_stime);
+    if (count_request && TR_G(cpuSnapshotValid)) {
+        /* RINIT: the previous window's post-request rusage is this window's
+         * start. An FPM worker handles requests sequentially in one process,
+         * so this saves a getrusage() syscall per request. The first request
+         * (and any window not closed by RSHUTDOWN) has no valid snapshot and
+         * falls back to an explicit getrusage(). A manual reset() always
+         * snapshots CPU: its documented boundary semantics must not depend
+         * on whether the previous window was flushed. */
+        tv_assign(&TR_G(requestData).CPUUsageUserTime, &TR_G(cpuSnapshot).ru_utime);
+        tv_assign(&TR_G(requestData).CPUUsageSystemTime, &TR_G(cpuSnapshot).ru_stime);
+    } else {
+        struct rusage u;
+        getrusage(RUSAGE_SELF, &u);
+        tv_assign(&TR_G(requestData).CPUUsageUserTime, &u.ru_utime);
+        tv_assign(&TR_G(requestData).CPUUsageSystemTime, &u.ru_stime);
+    }
 
     TR_G(requestData).response_http_size = 0;
     if (TR_G(modeCli)) {
@@ -499,6 +520,8 @@ static void collect_metrics_after_request() {
     timersub(&tv, &TR_G(requestData).executionTime, &TR_G(requestData).executionTime);
     timersub(&u.ru_utime, &TR_G(requestData).CPUUsageUserTime, &TR_G(requestData).CPUUsageUserTime);
     timersub(&u.ru_stime, &TR_G(requestData).CPUUsageSystemTime, &TR_G(requestData).CPUUsageSystemTime);
+    TR_G(cpuSnapshot) = u;
+    TR_G(cpuSnapshotValid) = true;
 }
 
 static size_t sapi_ub_write_counter(const char *str, size_t length) {
@@ -557,10 +580,9 @@ static inline struct timeval tr_fetch_global_var_tv(const char *name) {
 
 static inline zval *tr_fetch_global_var_zval(const char *name) {
     if ((Z_TYPE(PG(http_globals)[TRACK_VARS_SERVER]) == IS_ARRAY || zend_is_auto_global_str(ZEND_STRL("_SERVER")))) {
-        zend_string *findName = zend_string_init(name, strlen(name), 0);
-        zval *result = zend_hash_find(Z_ARRVAL(PG(http_globals)[TRACK_VARS_SERVER]), findName);
-        zend_string_release(findName);
-        return result;
+        /* str_find hashes the C string directly: no zend_string alloc/free
+         * for each of the ~6 $_SERVER lookups per request. */
+        return zend_hash_str_find(Z_ARRVAL(PG(http_globals)[TRACK_VARS_SERVER]), name, strlen(name));
     }
     return NULL;
 }

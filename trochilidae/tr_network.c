@@ -182,6 +182,12 @@ extern bool tr_client_create(TrClient *client) {
         fprintf(stderr, "tr_client_create: socket creation failed\n");
         return false;
     }
+    /* The send buffer does not depend on the current message size: configure
+     * it once per client, not on every flush (one less syscall per send). */
+    const int sndbuf = MAX_CHUNK_SIZE;
+    if (setsockopt(client->socketFd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf)) < 0) {
+        perror("[tr_client_create] setsockopt SO_SNDBUF failed");
+    }
     if (!tr_client_set_addr_info(client)) {
         close(client->socketFd);
         client->socketFd = -1;
@@ -237,9 +243,12 @@ extern bool tr_client_refresh_server(TrClient *client) {
     const time_t t = time(NULL);
     /* `sock_address_refresh_at` is the time of the last successful resolve (0
      * means "never"). A failed resolve stores `t - timeout + 25`, which leaves
-     * a 25 second retry window with this comparison. */
+     * a 25 second retry window with this comparison. Report success there only
+     * if an address was resolved before (last-known-good); if none was ever
+     * resolved, sin_addr is still INADDR_NONE and sendto() would attempt a
+     * broadcast to 255.255.255.255 instead of dropping the packet. */
     if (client->sock_address_refresh_at > (t - domain_resolve_cache_timeout)) {
-        return true;
+        return client->sock_address_in.sin_addr.s_addr != INADDR_NONE;
     }
 
     client->sock_address_in.sin_family = AF_INET;
@@ -283,10 +292,6 @@ ssize_t send_chunks(TrClient *client, const byte *data, const size_t size, const
 
     const unsigned long packetId = generate_random_ulong();
     //fprintf(stderr, "[tr-send_chunks] packetId %llu, chunks: %d\n", packetId, total_chunks);
-
-    if (setsockopt(client->socketFd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) < 0) {
-        perror("[tr-send_chunks] setsockopt SO_SNDBUF failed");
-    }
 
     ssize_t totalSentSize = 0;
     unsigned short i = 0;

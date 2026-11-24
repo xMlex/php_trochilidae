@@ -35,6 +35,8 @@ ZEND_BEGIN_MODULE_GLOBALS(trochilidae)
     struct tr_array msg;
     TrClient collectors[PHP_TROCHILIDAE_COLLECTORS_MAX];
     TrRequestData requestData;
+    struct rusage cpuSnapshot; /* CPU usage at the last flush; RINIT reuses it */
+    bool cpuSnapshotValid;     /* false until a window was closed at request shutdown */
     zval tags;
     zval timers;
     unsigned long bytesSend;

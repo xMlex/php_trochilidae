@@ -13,7 +13,6 @@ void tr_array_init(struct tr_array *self, size_t capacity) {
         capacity = DEFAULT_CAPACITY;
     }
 
-    self->init_capacity = capacity;
     self->capacity = capacity;
     self->data = malloc(sizeof(byte) * capacity);
     CHECK_ALLOC(self->data);
@@ -40,15 +39,19 @@ void tr_array_clear(struct tr_array *self) {
 void tr_array_reset(struct tr_array *self) {
     tr_array_clear(self);
 
-    if (self->capacity <= self->init_capacity) {
+    /* Keep the high-water mark instead of shrinking to the default every time:
+     * a worker that once built a large packet would otherwise pay a realloc
+     * (mremap) on both growth and shrink of every following window. The cap
+     * bounds how much heap a single oversized message can pin. */
+    if (self->capacity <= MAX_RETAINED_CAPACITY) {
         return;
     }
 
-    byte *new_data = realloc(self->data, sizeof(byte) * self->init_capacity);
+    byte *new_data = realloc(self->data, sizeof(byte) * MAX_RETAINED_CAPACITY);
     CHECK_ALLOC(new_data);
 
     self->data = new_data;
-    self->capacity = self->init_capacity;
+    self->capacity = MAX_RETAINED_CAPACITY;
 }
 
 void tr_array_free(const struct tr_array *self) {

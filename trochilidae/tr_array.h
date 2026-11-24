@@ -12,6 +12,9 @@
 #include "trochilidae/utils.h"
 
 #define DEFAULT_CAPACITY 9216
+/* Upper bound for the reusable serialization buffer: one worker keeps at most
+ * this much libc heap after building an oversized packet. */
+#define MAX_RETAINED_CAPACITY 262144
 
 /**
  * @struct tr_array
@@ -23,7 +26,6 @@
 struct tr_array {
     size_t position;
     size_t size;
-    size_t init_capacity;
     size_t capacity;
     byte *data;
 };
